@@ -92,7 +92,7 @@ def evaluate(tm: Tm, env: Env) -> Val:
                 case (_, VError()):
                     return VError()
                 case (VDict(ks, vs), q):
-                    V = [v for (k,v) in zip(ks, vs) if q(k,v)]
+                    V = [v for (k,v) in zip(ks, vs) if rel(k,q)]
                     return choice(V)
 
         case _:
