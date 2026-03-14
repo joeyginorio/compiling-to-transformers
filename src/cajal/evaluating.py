@@ -97,4 +97,3 @@ def evaluate(tm: Tm, env: Env) -> Val:
 
         case _:
             raise ValueError(f"Unexpected term: {tm}")
-
