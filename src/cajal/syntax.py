@@ -72,8 +72,8 @@ class TmInj2:
 
 @dataclass
 class TmDict:
-    tm1: Tm
-    tm2: Tm
+    tm1: list[Tm]
+    tm2: list[Tm]
 
 @dataclass
 class TmProj1:
@@ -141,6 +141,6 @@ class VPair:
 
 @dataclass
 class VDict:
-    v1: Val
-    v2: Val
+    v1: list[Val]
+    v2: list[Val]
 
