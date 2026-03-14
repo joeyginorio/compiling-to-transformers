@@ -95,3 +95,6 @@ def evaluate(tm: Tm, env: Env) -> Val:
                     V = [v for (k,v) in zip(ks, vs) if q(k,v)]
                     return choice(V)
 
+        case _:
+            raise ValueError(f"Unexpected term: {tm}")
+
