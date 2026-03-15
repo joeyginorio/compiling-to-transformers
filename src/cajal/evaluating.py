@@ -2,6 +2,12 @@ from random import random
 from random import choice
 from cajal.syntax import *
 
+'''
+This file implements the interpreter for Cajal.
+'''
+
+# --- Evaluation ---
+
 type Env = dict[str, Val]
 
 def evaluate(tm: Tm, env: Env) -> Val:
