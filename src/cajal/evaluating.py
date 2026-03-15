@@ -19,9 +19,6 @@ def evaluate(tm: Tm, env: Env) -> Val:
         case TmUnit():
             return VUnit()
         
-        case TmError():
-            return VError()
-        
         case TmPair(tm1, tm2):
             return VPair(tm1, tm2)
         
