@@ -2,6 +2,10 @@ from dataclasses import dataclass
 from collections.abc import Callable
 from typing import Any
 
+'''
+This file implements the syntax for Cajal: its terms, values, and contexts.
+'''
+
 # --- Types ---
 
 type Ty = (  TyUnit
@@ -146,3 +150,7 @@ class VDict:
     v1: list[Val]
     v2: list[Val]
 
+
+# --- Context ---
+
+type Ctx = dict[str, Ty]
