@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from collections.abc import Callable
 from typing import Any
 
-# ------------------------------------- Types ------------------------------------- #
+# --- Types ---
 
 type Ty = (  TyUnit
            | TySum
@@ -28,7 +28,8 @@ class TyDict:
     ty1: Ty
     ty2: Ty
 
-# ------------------------------------- Terms ------------------------------------- #
+
+# --- Terms ---
 
 type Tm = (  TmVar
            | TmUnit 
@@ -108,7 +109,8 @@ class TmLet:
     tm1: Tm
     tm2: Tm
 
-# ------------------------------------- Values ------------------------------------- #
+
+# --- Values ---
 
 type Val = (  VUnit 
             | VInj1
