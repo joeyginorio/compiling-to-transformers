@@ -1,0 +1,347 @@
+% Compiling to recursive neurons
+\newcommand{\Unit}{\nb{\mathbb{1}}}
+\newcommand{\Rec}[2]{\nb{\mu #1.#2}}
+\newcommand{\tens}[2]{\nb{\langle #1 , #2\rangle}}
+\newcommand{\fold}[1]{\nb{\t{fold}\;#1}}
+\newcommand{\unfold}[1]{\nb{\t{unfold}\;#1}}
+\newcommand{\Vn}[2]{\nb{\mathcal{R}^{#1}_{\t{V}}}\c{\nb{#2}}}
+\newcommand{\En}[2]{\nb{\mathcal{R}^{#1}_{\t{E}}}\c{\nb{#2}}}
+\newcommand{\Nvn}[2]{\nb{\mathcal{R}^{#1}_{\t{C}}}\c{\nb{#2}}}
+\newcommand{\ess}[1]{\nb{e_{#1}}}
+\newcommand{\vss}[1]{\nb{v_{#1}}}
+\newcommand{\mss}[1]{\nb{m_{#1}}}
+\newcommand{\nss}[1]{\nb{n_{#1}}}
+\newcommand{\es}{\nb{e}}
+\newcommand{\vs}{\nb{v}}
+\newcommand{\ns}{\nb{n}}
+\newcommand{\ms}{\nb{m}}
+\newcommand{\sub}[3]{\nb{\{#1 \mapsto #2\}(#3)}}
+\newcommand{\unit}{\nb{*}}
+\newcommand{\inl}[1]{\nb{\textsf{inl}\,#1}}
+\newcommand{\inr}[1]{\nb{\textsf{inr}\,#1}}
+\newcommand{\lsub}[2]{\nb{#1(#2)}}
+\newcommand{\nvs}[1]{\nb{{\sigma_{#1}}}}
+\newcommand{\nv}{\nb{{\sigma}}}
+\newcommand{\semp}{\nb{{\emp}}}
+\newcommand{\lpn}[4]{\nb{#1} \=_{#2} \nb{#3} : \nb{#4}}
+\newcommand{\ks}{\nb{k}}
+\newcommand{\js}{\nb{j}}
+\newcommand{\kss}[1]{\nb{k_{#1}}}
+\newcommand{\lam}[2]{\nb{\lambda #1 .#2}}
+\newcommand{\tense}[4]{\nb{\textsf{let}\,\langle #1, #2\rangle={#3}\,\textsf{in}\,#4}}
+\newcommand{\mono}[1]{\nb{\t{mono}\bl{(}#1\bl{)}}}
+\newcommand{\as}{\nb{\alpha}}
+\newcommand{\ass}[1]{\nb{\alpha_{#1}}}
+\newcommand{\let}[3]{\nb{\textsf{let}\,{#1}={#2}\,\textsf{in}\,#3}}
+\newcommand{\att}{\nb{\hspace{-.1em}\;\rightsquigarrow\;\hspace{-.1em}}}
+\newcommand{\inj}[2]{\nb{\textsf{inj}_{#1}\,\hspace{-.1em}#2}}
+\newcommand{\proj}[2]{\pi_{#1}\,\hspace{-.1em}#2}
+\newcommand{\sel}[5]{#1 \thicksim #2\;\textsf{with}\;\lambda {\small[}#3,#4{\small]}. #5}
+\newcommand{\dict}[2]{\nb{\{#1 : #2\}}}
+\newcommand{\Map}{\rightharpoonup}
+\newcommand{\Cj}{\cj{\Tiny(\nb{\Map})}}
+\newcommand{\qvec}{\rd{\vec{q}}}
+\newcommand{\qv}[1]{\rd{\vec{q_{#1}}}}
+\newcommand{\Vss}[1]{\nb{V_{#1}}}
+\newcommand{\Vs}{\nb{V}}
+
+\newcommand{\der}{\nb{D}}
+\newcommand{\error}{\nb{\t{error}}}
+\newcommand{\ders}[1]{\nb{D_{#1}}}
+
+\newcommand{\rsum}{\rd{\sum}}
+
+% -----------------------------------------
+
+
+\newcommand{\xs}{\nb{x}}
+\newcommand{\ys}{\nb{y}}
+\newcommand{\zs}{\nb{z}}
+
+\newcommand{\rp}{\hspace{.05em}\,\rd{+}\,\hspace{.05em}}
+\newcommand{\rt}{\hspace{.05em}\,\rd{\.}\,\hspace{.05em}}
+
+\newcommand{\var}[1]{\nb{\t{var}}(\nb{#1})}
+\newcommand{\fv}[1]{\nb{\t{fv}}(\nb{#1})}
+
+
+
+% tRASP
+\newcommand{\Bool}{\mathbb{2}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Rel}[2]{#1 \,\mathcal{R}\, #2}
+% \renewcommand{\[}{\textsf{[}}
+% \renewcommand{\]}{\textsf{]}}
+\newcommand{\agg}[2]{#1\{#2\}}
+% \newcommand{\sel}[3]{#1 \thicksim #2\;\textsf{with}\;#3}
+\newcommand{\sem}[1]{[\![ #1 ]\!]}
+\renewcommand{\c}[1]{[\![ #1 ]\!]}
+\newcommand{\ci}[1]{[\![ #1 ]\!]^{-1}}
+
+\newcommand{\C}{\mathcal{C}}
+\newcommand{\typ}[2]{\nb{#1}:\nb{#2}}
+\newcommand{\cm}[2]{\nb{#1}:\nb{#2}}
+
+\newcommand{\dom}[1]{\nb{\t{dom}}(\nb{#1})}
+\newcommand{\set}[1]{\nb{\t{set}}(\nb{#1})}
+\newcommand{\iset}[1]{\nb{\iota}(\nb{#1})}
+
+\newcommand\concat{\nb{\mathbin{+\mkern-10mu+}}}
+
+\newcommand{\Mat}{\rd{\t{[}\alpha_{ij}\t{]}}}
+
+\newcommand{\z}{\nb{\t{z}}}
+\newcommand{\suc}[1]{\nb{\t{s}(#1)}}
+
+\newcommand{\iter}[4]{\t{iter}\{\nb{#1}\mid \nb{#2} \hookrightarrow \nb{#3}\}(\nb{#4})}
+
+\renewcommand{\|}{\sqcap}
+
+\newcommand{\0}{\mathbb{0}}
+
+\newcommand{\idk}{\bullet}
+
+\renewcommand{\=}{\vDash}
+
+\newcommand{\tr}{\rd{\intercal}}
+
+\newcommand{\nty}{\bar{\ty}}
+
+% \renewcommand{\def}{\triangleq}
+
+% \renewcommand{\arr}{\Rightarrow}
+
+\newcommand{\ceq}{\simeq_{\textsf{ctx}}}
+\newcommand{\beq}{\simeq_{\textsf{ev}}}
+\newcommand{\run}[2]{\textsf{run}\;#1\;\textsf{with}\;#2}
+
+\newcommand{\expe}[3]{\mathbf{let}\,\, ! #1={#2}\,\,\mathbf{ in }\,\,#3}
+\newcommand{\expi}[1]{\;!#1}
+
+\newcommand{\ap}[2]{\nb{#1\hspace{.09em}#2}}
+
+\newcommand{\ec}[1]{\lfloor#1\rfloor}
+
+\newcommand{\n}[1]{\nb{\overline{\t{#1}}}}
+
+\newcommand{\Case}[1]{\mathbf{Case}\;#1}
+\newcommand{\Proof}{\mathbf{Proof.}\;}
+\renewcommand{\t}[1]{\textsf{#1}}
+\newcommand{\g}{\eta}
+\renewcommand{\a}{\rd{\alpha}}
+
+\newcommand{\relu}{\t{relu}}
+\newcommand{\ul}[1]{\underline{#1}}
+
+\newcommand{\nlmap}{\mapsto\!\!\!\!\!\!\!\mapsto}
+\newcommand{\map}{\mapsto}
+\newcommand{\fmap}[2]{#1\,\t{<?>}\;#2}
+
+\newcommand{\ih}[1]{\mathbb{ih}\textsf{(}#1\textsf{)}:}
+\newcommand{\ihh}[2]{\mathbb{ih}\textsf{(}#1,#2\textsf{)}:}
+\newcommand{\ihhh}[3]{\mathbb{ih}\textsf{(}#1,#2,#3\textsf{)}:}
+
+\newcommand{\Limp}[5]{\c{#1}(\Ev{#2}{#3}) =_{\rd{#4}} \rd{#5}}
+\newcommand{\LLimp}[5]{\rd{\t{approx}}{\c{#1}(\Ev{#2}{#3}) \approx_\rd{#4} \rd{#5}}}
+
+\newcommand{\nn}{\rd{\tilde{\eta}}}
+\newcommand{\cm}[1]{\c{\nb{#1}}}
+\newcommand{\learn}[4]{\rd{\t{learn}}[(\Ev{#1}{#2})= \rd{#3}] \approx \rd{#4}}
+
+\newcommand{\imp}[2]{\c{#1}(\rd{#2})}
+\newcommand{\limp}[3]{\c{#1}(\rd{#2}) = \rd{#3}}
+\newcommand{\impn}[4]{\c{#1}(\rd{#2})_{\rd{#3}} = \rd{#4}}
+\newcommand{\cimp}[9]{\c{\nb{#1}:(\nb{#2}\-\nb{#3}) \Rightarrow (\nb{#4}\-\nb{#5})}(\rd{#6} \mapsto \rd{#7})=(\rd{#8} \mapsto \rd{#9})}
+
+% \newcommand{\imp}[4]{\c{#1}_{\rd{#2}}^{\i}(\rd{#3}) = \rd{#4}}
+\newcommand{\aimp}[4]{\c{#1}_{\rd{#2}}^{\rd{#3}} \approx \rd{#4}}
+
+\newcommand{\rl}[1]{\RightLabel{\t{ #1}}}
+
+\newcommand{\ev}[1]{\rd{\sigma_{#1}}}
+\newcommand{\Ev}[2]{\bl{\rd{#1}\hspace{.09em};\rd{#2}}}
+\newcommand{\ctx}[2]{\bl{\nb{#1}\hspace{.09em};\nb{#2}}}
+% \newcommand{\sub}[2]{\nb{(\nb{#1}\hspace{.09em};\hspace{.05em}\!\nb{#2}})}
+
+\newcommand{\fst}[1]{\t{fst}\,#1}
+\newcommand{\snd}[1]{\t{snd}\,#1}
+
+\newcommand{\Diff}[1]{\rd{\Sigma}(\nb{#1})}
+
+\renewcommand{\exp}{\,\,!}
+\newcommand{\cur}[1]{\textsf{cur}\,#1}
+\newcommand{\uncur}[1]{\textsf{uncur}\; #1}
+\newcommand{\eval}{\textsf{eval}}
+\newcommand{\F}{\mathcal{F}}
+\newcommand{\+}{\oplus}
+
+\newcommand{\id}{\textsf{id}}
+\newcommand{\x}{\times}
+\newcommand{\ox}{\otimes}
+\newcommand{\runit}{\textsf{runit}}
+\newcommand{\runiti}{\textsf{runit}^{-1}}
+\newcommand{\assoc}{\textsf{assoc}}
+\newcommand{\lto}{\multimap}
+\newcommand{\symm}{\textsf{symm}}
+% \newcommand{\1}{\mathbb{1}}
+\renewcommand{\o}{\circ}
+% \renewcommand{\split}{\rightsquigarrow}
+\newcommand{\Val}{\;\textsf{Val}}
+% \renewcommand{\split}{\rightsquigarrow}
+\newcommand{\bstep}{\Downarrow}
+\newcommand{\pstep}[2]{\nb{#1} \Downarrow^{\rd{\i}} \nb{#2}}
+\newcommand{\step}[2]{\nb{#1} \Downarrow \nb{#2}}
+
+\newcommand{\nstep}[3]{\nb{#1} \Downarrow_\rd{#2} \nb{#3}}
+
+\renewcommand{\tt}{\nb{\textsf{tt}}}
+\newcommand{\ff}{\nb{\textsf{ff}}}
+\newcommand{\bv}[2]{\rd{\begin{bmatrix} #1 &\!\!\! #2\end{bmatrix}^\tr}}
+\newcommand{\ttv}{\rd{\begin{bmatrix} 1 &\!\!\! 0\end{bmatrix}^\tr}}
+\newcommand{\ffv}{\rd{\begin{bmatrix} 0 &\!\!\! 1\end{bmatrix}^\tr}}
+
+\newcommand{\e}{\rd{\epsilon}}
+\newcommand{\Le}{\rd{\large \epsilon}}
+\renewcommand{\d}{\sigma}
+
+\newcommand{\eb}{\rd{\bar{\epsilon}}}
+\renewcommand{\eb}[1]{\rd{\bar{\epsilon}_{#1}}}
+\renewcommand{\i}{\rd{\iota}}
+\newcommand{\im}{\rd{\iota_\t{max}}}
+\newcommand{\imi}{\rd{\iota_\t{min}}}
+
+\newcommand{\Vec}[2]{\textsf{Vec}_{#1}\textsf{(}#2\textsf{)}}
+% \newcommand{\tens}[2]{\textsf{tens}_{#1}\textsf{(}#2\textsf{)}}
+\newcommand{\te}[1]{\textsf{tens}_{#1}\textsf{(}\R\textsf{)}}
+
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\sig}{\sigma}
+
+\newcommand{\ty}{\tau}
+\newcommand{\lty}{\overline{\tau}}
+\newcommand{\emp}{\varnothing}
+
+\newcommand{\ind}[2]{#1 \; \textsf{?} \; #2}
+\newcommand{\look}[3]{#1 \; !! \; #2}
+\newcommand{\ite}[3]{\textsf{if}\;#1\;\textsf{then}\;#2\;\textsf{else}\;#3}
+
+\newcommand{\ilz}[3]{\textsf{iflz}\;#1\;\textsf{then}\;#2\;\textsf{else}\;#3}
+
+\newcommand{\casei}[1]{\t{case}\,#1\,\t{of}\,\{\mid_{i=1}^n \inj{i}{x_i} \Rightarrow e_i\}}
+\newcommand{\case}[5]{\t{case}\,#1\,\t{of}\,\{\inj{1}{#2}\Rightarrow#3; \inj{2}{#4}\Rightarrow#5\}}
+
+
+
+\newcommand{\hsteps}[3]{ #1 \overset{#2}{\steps} #3}
+
+\newcommand{\injl}[1]{\textsf{inj}_{l}#1}
+\newcommand{\injr}[1]{\textsf{inj}_{r}#1}
+
+
+\newcommand{\tickle}{\textsf{tickle}}
+
+% \newcommand{\M}[2]{\nb{#1}\in\nb{\mathcal{M}}\c{\nb{#2}}}
+% \newcommand{\En}[2]{\nb{#1}\in\nb{\mathcal{N}}\c{\nb{#2}}}
+
+
+% \newcommand{\V}[1]{\nb{\mathcal{V}}\c{\nb{#1}}}
+% \newcommand{\E}[1]{\nb{\mathcal{E}}\c{\nb{#1}}}
+\newcommand{\Gam}[1]{\nb{\mathcal{G}}(\nb{#1})}
+% \newcommand{\N}[1]{\nb{\mathcal{N}}\c{\nb{#1}}}
+
+% draft
+\newcommand{\V}[1]{\nb{\mathcal{R}_{\t{V}}}\c{\nb{#1}}}
+\newcommand{\E}[1]{\nb{\mathcal{R}_{\t{E}}}\c{\nb{#1}}}
+\newcommand{\Nv}[1]{\nb{\mathcal{R}}\c{\nb{#1}}}
+
+\newcommand{\steps}{\leadsto}
+\renewcommand{\-}{\vdash}
+\newcommand{\splits}{\ucup}
+
+% \newcommand{\c}{\;;\,}
+\renewcommand{\textsc}[2]{\rm #1 {\small #2}}
+\newcommand{\m}[1]{[\![#1]\!]}
+\renewcommand{\deg}[1]{\textsf{deg}(#1)}
+\newcommand{\bind}[2]{#1\!:\!#2}
+\newcommand{\sbind}[3]{#1 \overset{#2}{\mapsto} #3}
+\newcommand{\Sbind}[3]{#1 \!:^{#2}\! #3}
+
+\newcommand{\cbind}[3]{#1\!:^{#2}\!#3}
+\newcommand{\bbind}[3]{#1\!:\!\box{#2}_{#3}}
+
+\newcommand{\nlam}[2]{\lambda{\small (}#1{\small )}.#2}
+
+\renewcommand{\nlmap}[2]{{\small (}#1{\small )} \mapsto #2}
+
+\newcommand{\hlam}[4]{\lambda #1\!:^#2\!#3.#4}
+\newcommand{\G}{\Gamma}
+\renewcommand{\G}{\Gamma}
+\renewcommand{\.}{\cdot}
+% \newcommand{\2}{\mathbb{2}}
+
+\newcommand{\og}[1]{{\color{OliveGreen}#1}}
+\newcommand{\br}[1]{{\color{BrickRed}#1}}
+\newcommand{\nb}[1]{{\color{NavyBlue}#1}}
+% \newcommand{\b}[1]{{\color{NavyBlue}#1}}
+% \newcommand{\or}[1]{{\color{OrangeRed}#1}}
+\newcommand{\rd}[1]{{\color{OrangeRed}#1}}
+\newcommand{\bl}[1]{{\color{black}#1}}
+
+\newcommand{\ol}[1]{\overline{#1}}
+
+\newcommand{\er}[1]{\rd{\Sigma}\c{\nb{#1}}}
+\newcommand{\ner}[1]{\rd{\Sigma}_\rd{\0}\c{\nb{#1}}}
+
+
+
+\newcommand{\p}[3]{\nb{#1} \- \nb{#2} : \nb{#3}}
+\renewcommand{\P}[4]{\nb{#1}\hspace{.09em};\nb{#2} \- \nb{#3} : \nb{#4}}
+\newcommand{\lp}[3]{\nb{#1} \= \nb{#2} : \nb{#3}}
+\newcommand{\Lp}[4]{\nb{#1}\hspace{.09em};\nb{#2} \= \nb{#3} : \nb{#4}}
+\newcommand{\pl}[3]{\nb{#1} \-_{\nb{\t{lin}}} \nb{#2} : \nb{#3}}
+\newcommand{\pn}[3]{\nb{#1} \-_{\nb{\t{nlin}}} \nb{#2} : \nb{#3}}
+
+\newcommand{\seq}{\,;\,\!}
+
+\renewcommand{\a}[1]{\rd{\alpha_{#1}}}
+\renewcommand{\v}[1]{\rd{\beta_{#1}}}
+\newcommand{\et}[1]{\rd{\vec{e_{#1}}}}
+
+\newcommand{\svec}{\rd{\vec{\sigma}}}
+\newcommand{\pvec}{\rd{\vec{\pi}}}
+\newcommand{\xvec}{\rd{\vec{x}}}
+\newcommand{\xv}[1]{\rd{\vec{x_{#1}}}}
+\newcommand{\yvec}{\rd{\vec{y}}}
+\newcommand{\yv}[1]{\rd{\vec{y_{#1}}}}
+
+\newcommand{\s}{\sigma}
+\newcommand{\sv}[1]{\rd{\vec{\s_{#1}}}}
+\newcommand{\svi}[1]{\rd{\vec{\s}}_{\mid\nb{#1}}}
+\newcommand{\pv}[1]{\rd{\vec{\pi_{#1}}}}
+\newcommand{\gv}[1]{\rd{\vec{\g_{#1}}}}
+
+\newcommand{\vt}[1]{\rd{\vec{v_{#1}}}}
+\newcommand{\wt}[1]{\rd{\vec{w_{#1}}}}
+
+\renewcommand{\fill}[2]{\nb{(#1)[#2]}}
+
+\newcommand{\rel}{\hookrightarrow}
+
+\newcommand{\nate}[4]{\textsf{rec}\{\textsf{z}\to #1;\, \textsf{s}\,#2 \to #3\}(#4)}
+
+\newcommand{\Ds}[1]{\nb{\Delta_{#1}}}
+\newcommand{\D}{\nb{\Delta}}
+\newcommand{\sq}{\square}
+\newcommand{\cj}{\nb{\textsf{Cajal}}}
+\newcommand{\nlet}[3]{\textsf{let}\,{#1}={#2}\,\textsf{in}\,#3}
+
+\newcommand{\prode}[4]{\textsf{let}\,(#1,#2)={#3}\,\textsf{in}\,#4}
+\newcommand{\boxe}[3]{\textsf{let}\,\[#1\]={#2}\,\textsf{in}\,#3}
+\newcommand{\unite}[2]{\t{let}\,\,\unit={#1}\,\,\t{in}\,\,#2}
+\newcommand{\sume}[5]{\textsf{case}\;#1\;\textsf{of}\;\{\textsf{inl}\,#2 \to #3;\, \textsf{inr}\,#4 \to #5\}}
+% \renewcommand{\box}[1]{\[\!\!\textsf{[} #1 \textsf{]}\!\!\]}
+
+\newcommand{\bin}[1]{\rd{\mathbb{b}^\t{in}_{#1}}}
+\newcommand{\bout}[1]{\rd{\mathbb{b}^\t{out}_{#1}}}
+
+\newcommand{\lamt}[3]{\lambda #1 \!:\!#2.#3}
