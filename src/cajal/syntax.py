@@ -37,7 +37,6 @@ class TyDict:
 
 type Tm = (  TmVar
            | TmUnit 
-           | TmError
            | TmPair
            | TmInj1
            | TmInj2
@@ -56,9 +55,6 @@ class TmVar:
 
 @dataclass
 class TmUnit: ...
-
-@dataclass
-class TmError: ...
 
 @dataclass
 class TmPair:
