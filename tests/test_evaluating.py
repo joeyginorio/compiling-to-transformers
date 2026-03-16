@@ -12,41 +12,53 @@ def test_var():
 
 # --- Pairs and Projections ---
 
-def test_pair():
-    assert evaluate(TmPair(TmUnit(), TmUnit()), {}) == VPair(TmUnit(), TmUnit())
+def test_prod():
+    assert evaluate(TmProd([TmUnit(), TmUnit()]), {}) == VProd([TmUnit(), TmUnit()])
+
+def test_proj0():
+    assert evaluate(TmProj(0, TmProd([TmUnit(), TmUnit()])), {}) == VUnit()
 
 def test_proj1():
-    assert evaluate(TmProj1(TmPair(TmUnit(), TmUnit())), {}) == VUnit()
+    assert evaluate(TmProj(1, TmProd([TmUnit(), TmUnit()])), {}) == VUnit()
 
-def test_proj2():
-    assert evaluate(TmProj2(TmPair(TmUnit(), TmUnit())), {}) == VUnit()
+def test_proj3():
+    triple = TmProd([TmUnit(), TmUnit(), TmUnit()])
+    assert evaluate(TmProj(2, triple), {}) == VUnit()
 
 # --- Injections and Case ---
 
+def test_inj0():
+    ty = TySum([TyUnit(), TyUnit()])
+    assert evaluate(TmInj(0, TmUnit(), ty), {}) == VInj(0, VUnit(), ty)
+
 def test_inj1():
-    assert evaluate(TmInj1(TmUnit(), TySum(TyUnit(), TyUnit())), {}) == VInj1(VUnit(), TySum(TyUnit(), TyUnit()))
+    ty = TySum([TyUnit(), TyUnit()])
+    assert evaluate(TmInj(1, TmUnit(), ty), {}) == VInj(1, VUnit(), ty)
 
 def test_inj2():
-    assert evaluate(TmInj2(TmUnit(), TySum(TyUnit(), TyUnit())), {}) == VInj2(VUnit(), TySum(TyUnit(), TyUnit()))
+    ty = TySum([TyUnit(), TyUnit(), TyUnit()])
+    assert evaluate(TmInj(2, TmUnit(), ty), {}) == VInj(2, VUnit(), ty)
 
-def test_case_inj1():
-    tm = TmCase(TmInj1(TmUnit(), TySum(TyUnit(), TyUnit())), 'x', TmVar('x'), 'y', TmUnit())
+def test_case_inj0():
+    ty = TySum([TyUnit(), TyUnit()])
+    tm = TmCase(TmInj(0, TmUnit(), ty), ['x', 'y'], [TmVar('x'), TmUnit()])
     assert evaluate(tm, {}) == VUnit()
 
-def test_case_inj2():
-    tm = TmCase(TmInj2(TmUnit(), TySum(TyUnit(), TyUnit())), 'x', TmUnit(), 'y', TmVar('y'))
+def test_case_inj1():
+    ty = TySum([TyUnit(), TyUnit()])
+    tm = TmCase(TmInj(1, TmUnit(), ty), ['x', 'y'], [TmUnit(), TmVar('y')])
     assert evaluate(tm, {}) == VUnit()
 
 # --- Error propagation ---
 
 # A failed lookup: produces VError at runtime
-_err = TmLookup(TmDict([], []), TmUnit(), lambda x, y: True)
+_err = TmLookup(TmDict(TmProd([]), TmProd([])), TmUnit(), lambda x, y: True)
 
-def test_inj1_error():
-    assert evaluate(TmInj1(_err, TySum(TyUnit(), TyUnit())), {}) == VError()
+def test_inj_error():
+    assert evaluate(TmInj(0, _err, TySum([TyUnit(), TyUnit()])), {}) == VError()
 
 def test_case_error():
-    tm = TmCase(_err, 'x', TmUnit(), 'y', TmUnit())
+    tm = TmCase(_err, ['x', 'y'], [TmUnit(), TmUnit()])
     assert evaluate(tm, {}) == VError()
 
 # --- Choice ---
@@ -64,9 +76,9 @@ def test_let():
 # --- Dict and Lookup ---
 
 def test_dict():
-    tm = TmDict([TmUnit()], [TmUnit()])
-    assert evaluate(tm, {}) == VDict([VUnit()], [VUnit()])
+    tm = TmDict(TmProd([TmUnit()]), TmProd([TmUnit()]))
+    assert evaluate(tm, {}) == VDict(VProd([TmUnit()]), VProd([TmUnit()]))
 
 def test_lookup():
-    tm = TmLookup(TmDict([TmUnit()], [TmUnit()]), TmUnit(), lambda x, y: True)
+    tm = TmLookup(TmDict(TmProd([TmUnit()]), TmProd([TmUnit()])), TmUnit(), lambda x, y: True)
     assert evaluate(tm, {}) == VUnit()
