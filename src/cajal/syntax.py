@@ -19,13 +19,11 @@ class TyUnit: ...
 
 @dataclass
 class TySum:
-    ty1: Ty
-    ty2: Ty
+    tys: list[Ty]
 
 @dataclass
 class TyProd:
-    ty1: Ty
-    ty2: Ty
+    tys: list[Ty]
 
 @dataclass
 class TyDict:
@@ -37,12 +35,10 @@ class TyDict:
 
 type Tm = (  TmVar
            | TmUnit 
-           | TmPair
-           | TmInj1
-           | TmInj2
+           | TmProd
+           | TmInj
            | TmDict
-           | TmProj1
-           | TmProj2
+           | TmProj
            | TmCase
            | TmChoice
            | TmLookup
@@ -57,40 +53,30 @@ class TmVar:
 class TmUnit: ...
 
 @dataclass
-class TmPair:
-    tm1: Tm
-    tm2: Tm
+class TmProd:
+    tms: list[Tm]
 
 @dataclass
-class TmInj1:
-    tm: Tm
-    ty: Ty
-
-@dataclass
-class TmInj2:
+class TmInj:
+    n: int
     tm: Tm
     ty: Ty
 
 @dataclass
 class TmDict:
-    tm1: list[Tm]
-    tm2: list[Tm]
+    tm1: Tm
+    tm2: Tm
 
 @dataclass
-class TmProj1:
-    tm: Tm
-
-@dataclass
-class TmProj2:
+class TmProj:
+    n: int
     tm: Tm
 
 @dataclass
 class TmCase:
     tm: Tm
-    name1: str
-    tm1: Tm
-    name2: str
-    tm2: Tm
+    xs: list[str]
+    tms: list[Tm]
 
 @dataclass
 class TmChoice:
@@ -113,9 +99,8 @@ class TmLet:
 # --- Values ---
 
 type Val = (  VUnit 
-            | VInj1
-            | VInj2
-            | VPair
+            | VInj
+            | VProd
             | VDict
             | VError
             )
@@ -127,24 +112,19 @@ class VUnit: ...
 class VError: ...
 
 @dataclass
-class VInj1:
+class VInj:
+    n: int
     v: Val
     ty: Ty
 
 @dataclass
-class VInj2:
-    v: Val
-    ty: Ty
-
-@dataclass
-class VPair:
-    tm1: Tm
-    tm2: Tm
+class VProd:
+    tm: list[Tm]
 
 @dataclass
 class VDict:
-    v1: list[Val]
-    v2: list[Val]
+    v1: Val
+    v2: Val
 
 
 # --- Context ---

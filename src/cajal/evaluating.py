@@ -19,62 +19,46 @@ def evaluate(tm: Tm, env: Env) -> Val:
         case TmUnit():
             return VUnit()
         
-        case TmPair(tm1, tm2):
-            return VPair(tm1, tm2)
+        case TmProd(tms):
+            return VProd(tms)
         
-        case TmInj1(tm, ty):
+        case TmInj(n, tm, ty):
             v = evaluate(tm, env)
             match v:
                 case VError():
                     return VError()
                 case _:
-                    return VInj1(v, ty)
-                
-        case TmInj2(tm, ty):
-            v = evaluate(tm, env)
-            match v:
-                case VError():
-                    return VError()
-                case _:
-                    return VInj2(v, ty)
+                    return VInj(n, v, ty)
 
-        case TmDict(tm1s, tm2s):
-            v1s = [evaluate(tm1, env) for tm1 in tm1s]
-            v2s = [evaluate(tm2, env) for tm2 in tm2s]
-            if (VError() in v1s) or (VError() in v2s):
-                return VError()
-            else:
-                return VDict(v1s, v2s)
+        case TmDict(tm1, tm2):
+            v1 = evaluate(tm1, env)
+            v2 = evaluate(tm2, env)
+            match (v1, v2):
+                case (VError(), _) | (_, VError()):
+                    return VError()
+                case _:
+                    return VDict(v1, v2)
                 
-        case TmCase(tm, x1, tm1, x2, tm2):
+        case TmCase(tm, xs, tms):
             v = evaluate(tm, env)
             match v:
                 case VError():
                     return VError()
-                case VInj1(v1, ty):
-                    return evaluate(tm1, env | {x1: v1})
-                case VInj2(v2, ty):
-                    return evaluate(tm2, env | {x2: v2})
+                case VInj(n, v1, ty):
+                    return evaluate(tms[n], env | {xs[n]: v1})
                 case _:
                     raise ValueError(f"Unexpected value: {v}")
 
-        case TmProj1(tm):
+        case TmProj(n, tm):
             v = evaluate(tm, env)
             match v:
                 case VError():
                     return VError()
-                case VPair(tm1, tm2):
-                    return evaluate(tm1, env)
-                case _:
-                    raise ValueError(f"Unexpected value: {v}")
-
-        case TmProj2(tm):
-            v = evaluate(tm, env)
-            match v:
-                case VError():
-                    return VError()
-                case VPair(tm1, tm2):
-                    return evaluate(tm2, env)
+                case VProd(tms):
+                    if 0 <= n < len(tms):
+                        return evaluate(tms[n], env)
+                    else:
+                        raise ValueError(f"{n=} is projecting out-of-bounds.")
                 case _:
                     raise ValueError(f"Unexpected value: {v}")
 
@@ -96,8 +80,8 @@ def evaluate(tm: Tm, env: Env) -> Val:
                     return VError()
                 case (_, VError()):
                     return VError()
-                case (VDict(ks, vs), q):
-                    V = [v for (k,v) in zip(ks, vs) if rel(k,q)]
+                case (VDict(VProd(ks), VProd(vs)), q):
+                    V = [evaluate(v, env) for (k, v) in zip(ks, vs) if rel(evaluate(k, env), q)]
                     if V:
                         return choice(V)
                     else:
