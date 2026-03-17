@@ -119,5 +119,9 @@ def _check(tm: Tm, ctx: Ctx) -> tuple[Ty, Ctx]:
                     raise TypeError(f"Dictionary is not of dictionary type, got {ty1=}.")
 
 
-def check_val(val: Val) -> Ty:
-    ...
+def check(tm: Tm, ctx: Ctx) -> Ty:
+    ty, ctx = _check(tm, ctx)
+    if ctx:
+        raise TypeError(f"Unused context during typechecking: {ctx=}")
+    else:
+        return ty
