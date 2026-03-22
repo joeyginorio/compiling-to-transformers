@@ -39,6 +39,15 @@ def evaluate(tm: Tm, env: Env) -> Val:
                 case _:
                     return VDict(v1, v2)
                 
+        case TmSeq(tm1, tm2):
+            v1 = evaluate(tm1, env)
+            v2 = evaluate(tm2, env)
+            match v1:
+                case VError():
+                    return VError()
+                case VUnit():
+                    return v2
+                
         case TmCase(tm, xs, tms):
             v = evaluate(tm, env)
             match v:

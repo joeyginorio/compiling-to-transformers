@@ -38,6 +38,7 @@ type Tm = (  TmVar
            | TmProd
            | TmInj
            | TmDict
+           | TmSeq
            | TmProj
            | TmCase
            | TmChoice
@@ -64,6 +65,11 @@ class TmInj:
 
 @dataclass
 class TmDict:
+    tm1: Tm
+    tm2: Tm
+
+@dataclass
+class TmSeq:
     tm1: Tm
     tm2: Tm
 

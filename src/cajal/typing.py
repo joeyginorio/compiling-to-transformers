@@ -60,6 +60,16 @@ def _check(tm: Tm, ctx: Ctx) -> tuple[Ty, Ctx]:
                 case _:
                     raise TypeError(f"Dict requires product types, got {ty1=} and {ty2=}.")
 
+        case TmSeq(tm1, tm2):
+            ty1, ctx_remain1 = _check(tm1, ctx)
+            ty2, ctx_remain2 = _check(tm2, ctx_remain1)
+
+            match ty1:
+                case TyUnit():
+                    return ty2, ctx_remain2
+                case _:
+                    raise TypeError(f"{tm1=} is not of Unit type: {ty2=}.")
+        
         case TmLet(x, tm1, tm2):
             ty1, ctx_remain1 = _check(tm1, ctx)
             return _check(tm2, ctx_remain1 | {x: ty1})
