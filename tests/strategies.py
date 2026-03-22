@@ -39,11 +39,11 @@ class GCtx():
 # --- Generating programs ---
 
 @st.composite
-def gen_prog(draw) -> tuple[Tm, GCtx, Ty]:
+def gen_prog(draw) -> tuple[GCtx, Tm, Ty]:
     ctx = draw(gen_ctx())
     ty  = draw(gen_ty())
-    _, tm, _ = draw(gen_tm(ctx, ty))
-    return (tm, ctx, ty)
+    tm = draw(gen_tm(ctx, ty))
+    return (ctx, tm, ty)
 
 
 # --- Generating types ---
@@ -201,7 +201,7 @@ def gen_tm(draw, ctx: GCtx, ty: Ty) -> Tm:
                 match choice:
                     case 'intro':
                         n = draw(st.integers(min_value=0, max_value=len(tys2)-1))
-                        tm = draw(gen_tm(ctx, tys2[n]))
+                        tm = draw(gen_tm(ctx | {x: ty_neg}, tys2[n]))
                         return TmInj(n, tm, ty)
                     case 'elim':
                         n = draw(st.integers(min_value=0, max_value=len(tys1)-1))

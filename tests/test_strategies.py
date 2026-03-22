@@ -1,10 +1,10 @@
-from hypothesis import given, settings, HealthCheck, Verbosity
-from strategies import gen_tm
+from hypothesis import given, settings, HealthCheck
+from strategies import gen_prog
 from cajal.typing import check
 
-# @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow], verbosity=Verbosity.normal)
-# @given(gen_prog())
-# def test_gen_prog(ctx_tm_ty):
-#     ctx, tm, ty = ctx_tm_ty
-#     ty_check = check(tm, ctx)
-#     assert ty == ty_check
+@settings(max_examples=1000, suppress_health_check=[HealthCheck.too_slow])
+@given(gen_prog())
+def test_gen_tm(prog):
+    ctx, tm, ty = prog
+    ty_check = check(tm, ctx.flat())
+    assert ty == ty_check
