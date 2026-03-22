@@ -49,6 +49,21 @@ def test_case_inj1():
     tm = TmCase(TmInj(1, TmUnit(), ty), ['x', 'y'], [TmUnit(), TmVar('y')])
     assert evaluate(tm, {}) == VUnit()
 
+# --- Sequencing ---
+
+def test_seq():
+    tm = TmSeq(TmUnit(), TmUnit())
+    assert evaluate(tm, {}) == VUnit()
+
+def test_seq_returns_second():
+    ty = TySum([TyUnit(), TyUnit()])
+    tm = TmSeq(TmUnit(), TmInj(0, TmUnit(), ty))
+    assert evaluate(tm, {}) == VInj(0, VUnit(), ty)
+
+def test_seq_with_env():
+    tm = TmSeq(TmUnit(), TmVar('x'))
+    assert evaluate(tm, {'x': VUnit()}) == VUnit()
+
 # --- Error propagation ---
 
 # A failed lookup: produces VError at runtime
@@ -59,6 +74,14 @@ def test_inj_error():
 
 def test_case_error():
     tm = TmCase(_err, ['x', 'y'], [TmUnit(), TmUnit()])
+    assert evaluate(tm, {}) == VError()
+
+def test_seq_error_in_first():
+    tm = TmSeq(_err, TmUnit())
+    assert evaluate(tm, {}) == VError()
+
+def test_seq_error_in_second():
+    tm = TmSeq(TmUnit(), _err)
     assert evaluate(tm, {}) == VError()
 
 # --- Choice ---

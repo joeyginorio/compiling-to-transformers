@@ -114,6 +114,25 @@ def test_dict_keys_not_enum():
     with pytest.raises(TypeError):
         check(TmDict(keys, vals), {})
 
+# --- Sequencing ---
+
+def test_seq():
+    assert check(TmSeq(TmUnit(), TmUnit()), {}) == TyUnit()
+
+def test_seq_returns_second_type():
+    assert check(TmSeq(TmUnit(), TmProd([TmUnit()])), {}) == TyProd([TyUnit()])
+
+def test_seq_consumes_ctx():
+    assert check(TmSeq(TmVar('x'), TmVar('y')), {'x': TyUnit(), 'y': TyUnit()}) == TyUnit()
+
+def test_seq_unused_ctx():
+    with pytest.raises(TypeError):
+        check(TmSeq(TmUnit(), TmUnit()), {'x': TyUnit()})
+
+def test_seq_first_not_unit():
+    with pytest.raises(TypeError):
+        check(TmSeq(TmProd([TmUnit()]), TmUnit()), {})
+
 # --- Let ---
 
 def test_let():
