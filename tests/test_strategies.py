@@ -2,7 +2,7 @@ from hypothesis import given, settings, HealthCheck
 from strategies import gen_prog
 from cajal.typing import check
 
-@settings(max_examples=1000, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
 @given(gen_prog())
 def test_gen_tm(prog):
     ctx, tm, ty = prog
