@@ -39,6 +39,13 @@ class GCtx():
 # --- Generating programs ---
 
 @st.composite
+def gen_closed_prog(draw) -> tuple[Tm, Ty]:
+    ty = draw(gen_ty())
+    ctx = GCtx(pos={}, neg={})
+    tm = draw(gen_tm(ctx, ty, set()))
+    return (tm, ty)
+
+@st.composite
 def gen_prog(draw) -> tuple[GCtx, Tm, Ty]:
     ctx = draw(gen_ctx())
     ty  = draw(gen_ty())

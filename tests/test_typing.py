@@ -1,11 +1,20 @@
 import pytest
+from hypothesis import given, settings, HealthCheck
 from cajal.syntax import *
 from cajal.typing import check, Ctx
+from cajal.evaluating import evaluate
+from strategies import gen_closed_prog
 
 
 # ============= `check`: Property-based Testing
 
-# TODO
+@settings(max_examples=1000, suppress_health_check=[HealthCheck.too_slow])
+@given(gen_closed_prog())
+def test_closed_programs_terminate(prog):
+    """All well-typed closed programs terminate (evaluate without raising)."""
+    tm, _ = prog
+    val = evaluate(tm, {})
+    assert isinstance(val, (VUnit, VInj, VProd, VDict, VError))
 
 # ============= `check`: Unit Testing
 
