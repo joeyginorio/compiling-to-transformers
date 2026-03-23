@@ -149,6 +149,8 @@ def gen_tm(draw, ctx: GCtx, ty: Ty, used: set[str]) -> Tm:
                 tm1 = draw(gen_tm(ctx, ty1_list, used))
                 tm2 = draw(gen_tm(ctx, ty2_list, used))
                 return TmDict(tm1, tm2)
+            case _:
+                raise AssertionError("Impossible code path hit.")
 
     # 3. Are there any invertible introductions?
     elif not positive(ty):
@@ -158,6 +160,8 @@ def gen_tm(draw, ctx: GCtx, ty: Ty, used: set[str]) -> Tm:
                 for i in range(len(tys)):
                     tms.append(draw(gen_tm(ctx, tys[i], used)))
                 return TmProd(tms)
+            case _:
+                raise AssertionError("Impossible code path hit.")
 
     # 4. Are there any invertible eliminations?
     elif ctx.pos:
@@ -189,6 +193,8 @@ def gen_tm(draw, ctx: GCtx, ty: Ty, used: set[str]) -> Tm:
                 tm2 = draw(gen_tm(ctx2 | {name: ty2}, ty, used))
 
                 return TmLet(name, tm1, tm2)
+            case _:
+                raise AssertionError("Impossible code path hit.")
 
     # 5. Only non-invertible choices, begin focusing...
     elif ctx.neg:
@@ -225,6 +231,8 @@ def gen_tm(draw, ctx: GCtx, ty: Ty, used: set[str]) -> Tm:
                         tm2 = draw(gen_tm(ctx | {name: tys1[n]}, ty, used))
 
                         return TmLet(name, tm1, tm2)
+                    case _:
+                        raise AssertionError("Impossible code path hit.")
 
             # D, y: AxB |- C -> D (Dictionary arrow)
             case TyProd(tys), TyDict(ty1, ty2):
@@ -247,7 +255,14 @@ def gen_tm(draw, ctx: GCtx, ty: Ty, used: set[str]) -> Tm:
                         tm2 = draw(gen_tm(ctx | {name: tys[n]}, ty, used))
 
                         return TmLet(name, tm1, tm2)
+                    case _:
+                        raise AssertionError("Impossible code path hit.")
 
+            case _:
+                raise AssertionError("Impossible code path hit.")
+
+    else:
+        raise AssertionError("Impossible code path hit.")
 
 
 
