@@ -1,7 +1,7 @@
 import pytest
 from hypothesis import given, settings, HealthCheck
 from cajal.syntax import *
-from cajal.typing import check, Ctx
+from cajal.typing import check, check_val, Ctx
 from cajal.evaluating import evaluate
 from strategies import gen_closed_prog
 
@@ -11,10 +11,13 @@ from strategies import gen_closed_prog
 @settings(max_examples=1000, suppress_health_check=[HealthCheck.too_slow])
 @given(gen_closed_prog())
 def test_closed_programs_terminate(prog):
-    """All well-typed closed programs terminate (evaluate without raising)."""
     tm, _ = prog
-    val = evaluate(tm, {})
-    assert isinstance(val, (VUnit, VInj, VProd, VDict, VError))
+    vals = evaluate(tm, {})
+    assert all(isinstance(v, (VUnit, VInj, VProd, VDict, VError)) for v in vals)
+    ty = check(tm, {})
+    for v in vals:
+        if not isinstance(v, VError):
+            assert check_val(v) == ty
 
 # ============= `check`: Unit Testing
 
