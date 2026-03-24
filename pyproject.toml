@@ -15,6 +15,11 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::UserWarning:torch",
+]
+
 [tool.pyright]
 pythonVersion = "3.12"
 extraPaths = ["src"]
