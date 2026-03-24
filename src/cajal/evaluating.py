@@ -10,95 +10,104 @@ This file implements the interpreter for Cajal.
 
 type Env = dict[str, Val]
 
-def evaluate(tm: Tm, env: Env) -> Val:
+def evaluate(tm: Tm, env: Env) -> list[Val]:
     match tm:
 
         case TmVar(x):
-            return env[x]
-        
+            return [env[x]]
+
         case TmUnit():
-            return VUnit()
-        
+            return [VUnit()]
+
         case TmProd(tms):
-            return VProd(tms)
-        
+            return [VProd(tms)]
+
         case TmInj(n, tm, ty):
-            v = evaluate(tm, env)
-            match v:
-                case VError():
-                    return VError()
-                case _:
-                    return VInj(n, v, ty)
+            results = []
+            for v in evaluate(tm, env):
+                match v:
+                    case VError():
+                        results.append(VError())
+                    case _:
+                        results.append(VInj(n, v, ty))
+            return results
 
         case TmDict(tm1, tm2):
-            v1 = evaluate(tm1, env)
-            v2 = evaluate(tm2, env)
-            match (v1, v2):
-                case (VError(), _) | (_, VError()):
-                    return VError()
-                case _:
-                    return VDict(v1, v2)
-                
+            results = []
+            for v1 in evaluate(tm1, env):
+                for v2 in evaluate(tm2, env):
+                    match (v1, v2):
+                        case (VError(), _) | (_, VError()):
+                            results.append(VError())
+                        case _:
+                            results.append(VDict(v1, v2))
+            return results
+
         case TmSeq(tm1, tm2):
-            v1 = evaluate(tm1, env)
-            v2 = evaluate(tm2, env)
-            match v1:
-                case VError():
-                    return VError()
-                case VUnit():
-                    return v2
-                case _:
-                    raise ValueError(f"Unexpected value: {v1}")
+            results = []
+            for v1 in evaluate(tm1, env):
+                match v1:
+                    case VError():
+                        results.append(VError())
+                    case VUnit():
+                        results += evaluate(tm2, env)
+                    case _:
+                        raise ValueError(f"Unexpected value: {v1}")
+            return results
 
         case TmCase(tm, xs, tms):
-            v = evaluate(tm, env)
-            match v:
-                case VError():
-                    return VError()
-                case VInj(n, v1, ty):
-                    return evaluate(tms[n], env | {xs[n]: v1})
-                case _:
-                    raise ValueError(f"Unexpected value: {v}")
+            results = []
+            for v in evaluate(tm, env):
+                match v:
+                    case VError():
+                        results.append(VError())
+                    case VInj(n, v1, ty):
+                        results += evaluate(tms[n], env | {xs[n]: v1})
+                    case _:
+                        raise ValueError(f"Unexpected value: {v}")
+            return results
 
         case TmProj(n, tm):
-            v = evaluate(tm, env)
-            match v:
-                case VError():
-                    return VError()
-                case VProd(tms):
-                    if 0 <= n < len(tms):
-                        return evaluate(tms[n], env)
-                    else:
-                        raise ValueError(f"{n=} is projecting out-of-bounds.")
-                case _:
-                    raise ValueError(f"Unexpected value: {v}")
+            results = []
+            for v in evaluate(tm, env):
+                match v:
+                    case VError():
+                        results.append(VError())
+                    case VProd(tms):
+                        if 0 <= n < len(tms):
+                            results += evaluate(tms[n], env)
+                        else:
+                            raise ValueError(f"{n=} is projecting out-of-bounds.")
+                    case _:
+                        raise ValueError(f"Unexpected value: {v}")
+            return results
 
         case TmChoice(tm1, tm2):
-            if random() < .5:
-                return evaluate(tm1, env)
-            else:
-                return evaluate(tm2, env)
-            
-        case TmLet(x, tm1, tm2):
-            v1 = evaluate(tm1, env)
-            return evaluate(tm2, env | {x: v1})
-        
-        case TmLookup(tm1, tm2, rel):
-            v1 = evaluate(tm1, env)
-            v2 = evaluate(tm2, env)
-            match (v1, v2):
-                case (VError(), _):
-                    return VError()
-                case (_, VError()):
-                    return VError()
-                case (VDict(VProd(ks), VProd(vs)), q):
-                    V = [evaluate(v, env) for (k, v) in zip(ks, vs) if rel(evaluate(k, env), q)]
-                    if V:
-                        return choice(V)
-                    else:
-                        return VError()
-                case _:
-                    raise ValueError(f"Unexpected values: {v1}, {v2}")
+            return evaluate(tm1, env) + evaluate(tm2, env)
 
-        case _:
-            raise ValueError(f"Unexpected term: {tm}")
+        case TmLet(x, tm1, tm2):
+            results = []
+            for v1 in evaluate(tm1, env):
+                results += evaluate(tm2, env | {x: v1})
+            return results
+
+        case TmLookup(tm1, tm2, rel):
+            results = []
+            for v1 in evaluate(tm1, env):
+                for v2 in evaluate(tm2, env):
+                    match (v1, v2):
+                        case (VError(), _) | (_, VError()):
+                            results.append(VError())
+                        case (VDict(VProd(ks), VProd(vs)), q):
+                            matched = False
+                            for k, v in zip(ks, vs):
+                                v_vals = evaluate(v, env)
+                                for kv in evaluate(k, env):
+                                    if rel(kv, q):
+                                        results += v_vals
+                                        matched = True
+                            if not matched:
+                                results.append(VError())
+                        case _:
+                            raise ValueError(f"Unexpected values: {v1}, {v2}")
+            return results
