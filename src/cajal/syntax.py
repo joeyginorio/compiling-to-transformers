@@ -1,6 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Optional
 
 '''
 This file implements the syntax for Cajal: its terms, values, and contexts.
@@ -47,56 +47,60 @@ type Tm = (  TmVar
            )
 
 @dataclass
-class TmVar:
+class Term:
+    ty_checked: Optional[Ty] = field(default=None, init=False)
+
+@dataclass
+class TmVar(Term):
     name: str
 
 @dataclass
-class TmUnit: ...
+class TmUnit(Term): ...
 
 @dataclass
-class TmProd:
+class TmProd(Term):
     tms: list[Tm]
 
 @dataclass
-class TmInj:
+class TmInj(Term):
     n: int
     tm: Tm
     ty: Ty
 
 @dataclass
-class TmDict:
+class TmDict(Term):
     tm1: Tm
     tm2: Tm
 
 @dataclass
-class TmSeq:
+class TmSeq(Term):
     tm1: Tm
     tm2: Tm
 
 @dataclass
-class TmProj:
+class TmProj(Term):
     n: int
     tm: Tm
 
 @dataclass
-class TmCase:
+class TmCase(Term):
     tm: Tm
     xs: list[str]
     tms: list[Tm]
 
 @dataclass
-class TmChoice:
+class TmChoice(Term):
     tm1: Tm
     tm2: Tm
 
 @dataclass
-class TmLookup:
+class TmLookup(Term):
     tm1: Tm
     tm2: Tm
     rel: Callable[[Any, Any], bool]
 
 @dataclass
-class TmLet:
+class TmLet(Term):
     name: str
     tm1: Tm
     tm2: Tm
