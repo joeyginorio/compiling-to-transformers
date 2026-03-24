@@ -47,7 +47,9 @@ def evaluate(tm: Tm, env: Env) -> Val:
                     return VError()
                 case VUnit():
                     return v2
-                
+                case _:
+                    raise ValueError(f"Unexpected value: {v1}")
+
         case TmCase(tm, xs, tms):
             v = evaluate(tm, env)
             match v:
@@ -97,3 +99,6 @@ def evaluate(tm: Tm, env: Env) -> Val:
                         return VError()
                 case _:
                     raise ValueError(f"Unexpected values: {v1}, {v2}")
+
+        case _:
+            raise ValueError(f"Unexpected term: {tm}")
