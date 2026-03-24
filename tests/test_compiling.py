@@ -84,35 +84,35 @@ def test_compile_prod_from_vars():
 # --- compile: TmInj ---
 
 def test_compile_inj0_binary():
-    # inj_0 unit : Unit + Unit  →  (1.0, 0.0)
+    # inj_0 unit : Unit + Unit  ->  (1.0, 0.0)
     ty = TySum([TyUnit(), TyUnit()])
     module = compile(TmInj(0, TmUnit(), ty))
     result = module({})
     assert torch.equal(result, torch.tensor([1.0, 0.0]))
 
 def test_compile_inj1_binary():
-    # inj_1 unit : Unit + Unit  →  (0.0, 1.0)
+    # inj_1 unit : Unit + Unit  ->  (0.0, 1.0)
     ty = TySum([TyUnit(), TyUnit()])
     module = compile(TmInj(1, TmUnit(), ty))
     result = module({})
     assert torch.equal(result, torch.tensor([0.0, 1.0]))
 
 def test_compile_inj0_ternary():
-    # inj_0 unit : Unit + Unit + Unit  →  (1.0, 0.0, 0.0)
+    # inj_0 unit : Unit + Unit + Unit  ->  (1.0, 0.0, 0.0)
     ty = TySum([TyUnit(), TyUnit(), TyUnit()])
     module = compile(TmInj(0, TmUnit(), ty))
     result = module({})
     assert torch.equal(result, torch.tensor([1.0, 0.0, 0.0]))
 
 def test_compile_inj1_ternary():
-    # inj_1 unit : Unit + Unit + Unit  →  (0.0, 1.0, 0.0)
+    # inj_1 unit : Unit + Unit + Unit  ->  (0.0, 1.0, 0.0)
     ty = TySum([TyUnit(), TyUnit(), TyUnit()])
     module = compile(TmInj(1, TmUnit(), ty))
     result = module({})
     assert torch.equal(result, torch.tensor([0.0, 1.0, 0.0]))
 
 def test_compile_inj2_ternary():
-    # inj_2 unit : Unit + Unit + Unit  →  (0.0, 0.0, 1.0)
+    # inj_2 unit : Unit + Unit + Unit  ->  (0.0, 0.0, 1.0)
     ty = TySum([TyUnit(), TyUnit(), TyUnit()])
     module = compile(TmInj(2, TmUnit(), ty))
     result = module({})
@@ -128,7 +128,7 @@ def test_compile_let_basic():
     assert torch.equal(result, torch.tensor([1.0]))
 
 def test_compile_let_binding_visible_in_body():
-    # let x = unit in (x, x)  — x bound to [1.0], body produces [1.0, 1.0]
+    # let x = unit in (x, x)  - x bound to [1.0], body produces [1.0, 1.0]
     module = compile(TmLet('x', TmUnit(), TmProd([TmVar('x'), TmVar('x')])))
     result = module({})
     assert torch.equal(result, torch.tensor([1.0, 1.0]))
