@@ -82,8 +82,8 @@ def _check(tm: Tm, ctx: Ctx) -> tuple[Ty, Ctx]:
             tm.ty_checked = ty2
             return tm.ty_checked, ctx_remain2
 
-        case TmCase(tm, xs, tms):
-            ty, ctx_remain = _check(tm, ctx)
+        case TmCase(tm_sum, xs, tms):
+            ty, ctx_remain = _check(tm_sum, ctx)
 
             match ty:
                 case TySum(tys):
@@ -96,13 +96,13 @@ def _check(tm: Tm, ctx: Ctx) -> tuple[Ty, Ctx]:
                         raise TypeError(f"TmCase branches do not uniformly use context.")
 
                     tm.ty_checked = ty_cases[0]
-                    return tm.ty_checked, ctxs_remain[0]
+                    return ty_cases[0], ctxs_remain[0]
 
                 case _:
                     raise TypeError(f"{tm=} is not of sum type, {ty=}.")
 
-        case TmProj(n, tm):
-            ty, ctx_remain = _check(tm, ctx)
+        case TmProj(n, tm_prod):
+            ty, ctx_remain = _check(tm_prod, ctx)
 
             match ty:
                 case TyProd(tys):
