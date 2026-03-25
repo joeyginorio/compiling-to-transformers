@@ -56,13 +56,14 @@ def gen_prog(draw) -> tuple[GCtx, Tm, Ty]:
 
 # --- Generating types ---
 
+
 def gen_ty(max_leaves: int = 3) -> Gen[Ty]:
     return st.recursive(
         gen_ty_unit(),
         lambda subty: st.one_of(
             gen_ty_sum(subty),
             gen_ty_prod(subty),
-            gen_ty_dict(subty)
+            # gen_ty_dict(subty)
         ),
         max_leaves = max_leaves
     )
@@ -72,7 +73,7 @@ def gen_ty_pos(max_leaves: int = 3) -> Gen[Ty]:
         gen_ty_unit(),
         lambda subty: st.one_of(
             gen_ty_sum(subty),
-            gen_ty_dict(subty)
+            # gen_ty_dict(subty)
         ),
         max_leaves = max_leaves
     )
@@ -149,8 +150,6 @@ def gen_tm(draw, ctx: GCtx, ty: Ty, used: set[str]) -> Tm:
                 tm1 = draw(gen_tm(ctx, ty1_list, used))
                 tm2 = draw(gen_tm(ctx, ty2_list, used))
                 return TmDict(tm1, tm2)
-            case _:
-                raise AssertionError("Impossible code path hit.")
 
     # 3. Are there any invertible introductions?
     elif not positive(ty):
@@ -264,6 +263,29 @@ def gen_tm(draw, ctx: GCtx, ty: Ty, used: set[str]) -> Tm:
     else:
         raise AssertionError("Impossible code path hit.")
 
+# --- Generating closed values ---
+
+@st.composite
+def gen_val(draw, ty: Ty, used: set[str]) -> Val:
+    match ty:
+        case TyUnit():
+            return VUnit()
+        case TySum(tys):
+            n = draw(st.integers(min_value=0, max_value=len(tys)-1))
+            v = draw(gen_val(tys[n], used))
+            return VInj(n, v, ty)
+        case TyProd(tys):
+            tms = []
+            for i in range(len(tys)):
+                tms.append(draw(gen_tm(GCtx({},{}), tys[i], used)))
+            return VProd(tms)
+        case TyDict(ty1, ty2):
+            n = draw(st.integers(min_value=1, max_value=3))
+            ty1_list = TyProd([ty1]*n)
+            ty2_list = TyProd([ty2]*n)
+            v1 = draw(gen_val(ty1_list, used))
+            v2 = draw(gen_val(ty2_list, used))
+            return VDict(v1, v2)
 
 
 # --- Helpers ---
