@@ -1,9 +1,7 @@
 from cajal.syntax import *
 from cajal.evaluating import evaluate
-from hypothesis import given, settings, HealthCheck
-from strategies import gen_closed_prog
 
-
+# ============= `evaluate`: Unit Testing
 
 # --- Atoms ---
 
