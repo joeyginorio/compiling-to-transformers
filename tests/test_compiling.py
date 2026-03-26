@@ -13,7 +13,7 @@ from strategies import gen_prog, gen_val
 @settings(max_examples=1000, suppress_health_check=[HealthCheck.too_slow])
 @given(gen_prog(), st.data())
 def test_compiler_correctness(prog, data):
-    ctx, tm, ty = prog
+    ctx, tm, _ = prog
     _check(tm, ctx.flat())
     env = {x: data.draw(gen_val(ty_x, set())) for x, ty_x in ctx.flat().items()}
     vs = evaluate(tm, env)
