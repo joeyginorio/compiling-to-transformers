@@ -157,6 +157,11 @@ def test_let_unused_ctx():
     with pytest.raises(TypeError):
         check(TmLet('x', TmUnit(), TmVar('x')), {'z': TyUnit()})
 
+def test_let_body_ignores_binding():
+    # let x = unit in unit  — x is never consumed, violates linearity
+    with pytest.raises(TypeError):
+        check(TmLet('x', TmUnit(), TmUnit()), {})
+
 # --- Case ---
 
 _bool = TySum([TyUnit(), TyUnit()])
