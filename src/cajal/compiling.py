@@ -105,14 +105,15 @@ def compile(tm: Tm) -> nn.Module:
                     raise TypeError(f"{tm_sum=} is not a sum type: {tm_sum.ty_checked=}.")
                 
                 
-        case TmSeq(_, tm2):
+        case TmSeq(tm1, tm2):
 
             class NnSeq(nn.Module):
                 def __init__(self):
                     super().__init__()
+                    self.tm1_compiled = compile(tm1)
                     self.tm2_compiled = compile(tm2)
                 def forward(self, env: Env):
-                    return self.tm2_compiled(env)
+                    return self.tm1_compiled(env) * self.tm2_compiled(env)
 
             return NnSeq()
         
@@ -185,14 +186,18 @@ def compile_val(v: Val) -> nn.Module:
             return NnInj()
 
 
-        case VProd(tms):
+        case VProd(tms, stored_env):
+            stored_compiled = {x: compile_val(v) for x, v in stored_env.items()}
 
             class NnProd(nn.Module):
                 def __init__(self):
                     super().__init__()
                     self.tms_compiled = nn.ModuleList([compile(tm) for tm in tms])
+                    self.stored_compiled = nn.ModuleDict(stored_compiled)
                 def forward(self, env: Env) -> torch.Tensor:
-                    return torch.cat([tm_compiled(env) for tm_compiled in self.tms_compiled])
+                    extra = {x: m(env) for x, m in self.stored_compiled.items()}
+                    full_env = env | extra
+                    return torch.cat([tm_compiled(full_env) for tm_compiled in self.tms_compiled])
 
             return NnProd()
 
