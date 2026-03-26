@@ -160,8 +160,9 @@ def check_val(v: Val) -> Ty:
                 case _:
                     raise TypeError(f"VInj: annotation {ty} is not a sum type.")
 
-        case VProd(tms):
-            return TyProd([check(tm, {}) for tm in tms])
+        case VProd(tms, env):
+            ctx = {x: check_val(v) for x, v in env.items()}
+            return TyProd([_check(tm, ctx)[0] for tm in tms])
 
         case VDict(v1, v2):
             ty1 = check_val(v1)
