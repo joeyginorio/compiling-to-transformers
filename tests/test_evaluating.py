@@ -17,14 +17,23 @@ def test_prod():
     assert evaluate(TmProd([TmUnit(), TmUnit()]), {}) == [VProd([TmUnit(), TmUnit()])]
 
 def test_proj0():
-    assert evaluate(TmProj(0, TmProd([TmUnit(), TmUnit()])), {}) == [VUnit()]
+    # proj_0 (tt, unit) = tt, verifying the first component is selected
+    Bool = TySum([TyUnit(), TyUnit()])
+    tt = TmInj(0, TmUnit(), Bool)
+    assert evaluate(TmProj(0, TmProd([tt, TmUnit()])), {}) == [VInj(0, VUnit(), Bool)]
 
 def test_proj1():
-    assert evaluate(TmProj(1, TmProd([TmUnit(), TmUnit()])), {}) == [VUnit()]
+    # proj_1 (tt, unit) = unit, verifying the second component is selected
+    Bool = TySum([TyUnit(), TyUnit()])
+    tt = TmInj(0, TmUnit(), Bool)
+    assert evaluate(TmProj(1, TmProd([tt, TmUnit()])), {}) == [VUnit()]
 
-def test_proj3():
-    triple = TmProd([TmUnit(), TmUnit(), TmUnit()])
-    assert evaluate(TmProj(2, triple), {}) == [VUnit()]
+def test_proj2():
+    # proj_2 of a triple selects the third component
+    Bool = TySum([TyUnit(), TyUnit()])
+    tt = TmInj(0, TmUnit(), Bool)
+    triple = TmProd([TmUnit(), TmUnit(), tt])
+    assert evaluate(TmProj(2, triple), {}) == [VInj(0, VUnit(), Bool)]
 
 # --- Injections and Case ---
 
