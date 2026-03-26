@@ -20,7 +20,7 @@ def evaluate(tm: Tm, env: Env) -> list[Val]:
             return [VUnit()]
 
         case TmProd(tms):
-            return [VProd(tms)]
+            return [VProd(tms, env)]
 
         case TmInj(n, tm, ty):
             results = []
@@ -73,9 +73,9 @@ def evaluate(tm: Tm, env: Env) -> list[Val]:
                 match v:
                     case VError():
                         results.append(VError())
-                    case VProd(tms):
+                    case VProd(tms, stored_env):
                         if 0 <= n < len(tms):
-                            results += evaluate(tms[n], env)
+                            results += evaluate(tms[n], stored_env)
                         else:
                             raise ValueError(f"{n=} is projecting out-of-bounds.")
                     case _:
@@ -98,11 +98,11 @@ def evaluate(tm: Tm, env: Env) -> list[Val]:
                     match (v1, v2):
                         case (VError(), _) | (_, VError()):
                             results.append(VError())
-                        case (VDict(VProd(ks), VProd(vs)), q):
+                        case (VDict(VProd(ks, ks_env), VProd(vs, vs_env)), q):
                             matched = False
                             for k, v in zip(ks, vs):
-                                v_vals = evaluate(v, env)
-                                for kv in evaluate(k, env):
+                                v_vals = evaluate(v, vs_env)
+                                for kv in evaluate(k, ks_env):
                                     if rel(kv, q):
                                         results += v_vals
                                         matched = True
