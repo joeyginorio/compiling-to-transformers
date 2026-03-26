@@ -141,6 +141,47 @@ def compile(tm: Tm) -> nn.Module:
                 case _:
                     raise TypeError(f"{tm_prod=} is not a prod type: {tm_prod.ty_checked=}.")
 
+        case TmChoice(tm1, tm2):
+
+            class NnChoice(nn.Module):
+                def __init__(self):
+                    super().__init__()
+                    self.tm1_compiled = compile(tm1)
+                    self.tm2_compiled = compile(tm2)
+                def forward(self, env: Env):
+                    return self.tm1_compiled(env) + self.tm2_compiled(env)
+
+            return NnChoice()
+
+        case TmDict(tm_ks, tm_vs):
+            match (tm_ks.ty_checked, tm_vs.ty_checked):
+                case (TyProd(key_tys), TyProd(val_tys)):
+                    n = len(key_tys)
+                    d_k = dim(key_tys[0])
+                    d_v = dim(val_tys[0])
+
+                    class NnDict(nn.Module):
+                        def __init__(self):
+                            super().__init__()
+                            self.tm_ks_compiled = compile(tm_ks)
+                            self.tm_vs_compiled = compile(tm_vs)
+                        def forward(self, env: Env):
+                            K = self.tm_ks_compiled(env).reshape(n, d_k)
+                            V = self.tm_vs_compiled(env).reshape(n, d_v)
+                            return K.T @ V
+
+                    return NnDict()
+
+                case _:
+                    raise TypeError(f"TmDict: expected TyProd types, got {tm_ks.ty_checked=}, {tm_vs.ty_checked=}.")
+        
+        case TmLookup(tm1, tm2, rel):
+            # We know the type of queries
+            # We know the type of keys
+            # So we can sample the behavior of rel on the basis for
+            # queries to compute the matrix?
+            raise NotImplementedError()
+
         case _:
             raise NotImplementedError()
 
