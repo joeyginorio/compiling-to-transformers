@@ -130,6 +130,7 @@ class VInj:
 @dataclass
 class VProd:
     tm: list[Tm]
+    env: dict = field(default_factory=dict)
 
 @dataclass
 class VDict:
