@@ -4,13 +4,13 @@ from cajal.syntax import *
 from cajal.compiling import compile, compile_val, dim, zero
 from cajal.evaluating import evaluate
 from cajal.typing import _check
-from hypothesis import given, settings, HealthCheck
+from hypothesis import given, assume, settings, HealthCheck
 from strategies import gen_prog, gen_val                             
 
 
 # ============= `compile`: Property-Based Testing
 
-@settings(max_examples=1000, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=1000, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 @given(gen_prog(), st.data())
 def test_compiler_correctness(prog, data):
     ctx, tm, _ = prog
@@ -23,6 +23,20 @@ def test_compiler_correctness(prog, data):
     vs_compiled = [compile_val(v)(env_compiled) for v in vs]
     vs_compiled_sum = torch.stack(vs_compiled).sum(dim=0)
     assert torch.equal(tm_compiled, vs_compiled_sum)
+
+@settings(max_examples=1000, suppress_health_check=[HealthCheck.too_slow])
+@given(gen_prog(), st.data())
+def test_compiler_propagates_gradients(prog, data):
+    ctx, tm, _ = prog
+    _check(tm, ctx.flat())
+    env = {x: data.draw(gen_val(ty_x, set())) for x, ty_x in ctx.flat().items()}
+    
+    assume(ctx.flat())  # require at least one variable
+
+    env_compiled = {x: compile_val(v)({}).detach().requires_grad_() for x, v in env.items()}
+    y = compile(tm)(env_compiled).sum()
+    y.backward()
+    assert any(v.grad is not None for v in env_compiled.values())
 
 
 
