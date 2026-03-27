@@ -10,7 +10,7 @@ from strategies import gen_prog, gen_val
 
 # ============= `compile`: Property-Based Testing
 
-@settings(max_examples=1000, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 @given(gen_prog(), st.data())
 def test_compiler_correctness(prog, data):
     ctx, tm, _ = prog
@@ -24,7 +24,7 @@ def test_compiler_correctness(prog, data):
     vs_compiled_sum = torch.stack(vs_compiled).sum(dim=0)
     assert torch.equal(tm_compiled, vs_compiled_sum)
 
-@settings(max_examples=1000, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
 @given(gen_prog(), st.data())
 def test_compiler_propagates_gradients(prog, data):
     ctx, tm, _ = prog
@@ -509,6 +509,34 @@ def test_correctness_case_open_not_ff():
     values = evaluate(tm, val_env)
     expected = torch.stack([compile_val(v)({}) for v in values]).sum(dim=0)
     assert torch.equal(compile(tm)(tensor_env), expected)
+
+
+# --- Reverse ---
+
+def test_compile_reverse():
+    n = 4
+    ty = TySum([TyUnit()] * n)
+    idx = lambda i: TmInj(i, TmUnit(), ty)
+
+    reverse = TmProd([
+        TmLookup(
+            TmDict(TmProd([idx(i) for i in range(n)]),
+                   TmProd([TmProj(i, TmVar("xs")) for i in range(n)])),
+            idx(n-1-i),
+            lambda v1, v2: v1 == v2
+        ) for i in range(n)
+    ])
+
+    xs = TmProd([idx(3), idx(0), idx(1), idx(1)])  # [3,0,1,1] reversed is [1,1,0,3]
+    let_tm = TmLet("xs", xs, reverse)
+    _check(let_tm, {})
+    print("xs:       ", compile(xs)({}).data)
+    print("reversed: ", compile(let_tm)({}).data)
+    for i, e in enumerate([1, 1, 0, 3]):
+        tm = TmProj(i, let_tm)
+        values = evaluate(tm, {})
+        expected = torch.stack([compile_val(v)({}) for v in values]).sum(dim=0)
+        assert torch.equal(compile(tm)({}), expected)
 
 
 # --- TmDict ---

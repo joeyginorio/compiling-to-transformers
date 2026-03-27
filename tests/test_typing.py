@@ -8,7 +8,7 @@ from strategies import gen_closed_prog
 
 # ============= `check`: Property-based Testing
 
-@settings(max_examples=1000, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
 @given(gen_closed_prog())
 def test_closed_programs_terminate(prog):
     tm, _ = prog

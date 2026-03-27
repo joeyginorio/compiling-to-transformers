@@ -10,9 +10,6 @@ type Env = dict[str, torch.Tensor]
 
 # --- Compiling --- 
 
-# WARNING: Not batch-sensitive. But worry about that later.
-# 1. Use torch.vmap
-# 2. Make intrinsically batch-sensitive
 def compile(tm: Tm) -> nn.Module:
     match tm:
 
