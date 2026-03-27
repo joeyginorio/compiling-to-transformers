@@ -119,7 +119,8 @@ type Val = (  VUnit
 class VUnit: ...
 
 @dataclass
-class VError: ...
+class VError:
+    ty: Optional[Ty] = field(default=None, compare=False)
 
 @dataclass
 class VInj:

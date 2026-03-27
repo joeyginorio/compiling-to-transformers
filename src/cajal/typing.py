@@ -5,6 +5,18 @@ This file implements the typechecker for Cajal.
 '''
 
 
+# --- Helpers ---
+
+def is_enum(ty: Ty) -> bool:
+    match ty:
+        case TyUnit():
+            return True
+        case TySum(tys):
+            return all(t == TyUnit() for t in tys)
+        case _:
+            return False
+
+
 # --- Typing ---
 
 def _check(tm: Tm, ctx: Ctx) -> tuple[Ty, Ctx]:
@@ -22,8 +34,8 @@ def _check(tm: Tm, ctx: Ctx) -> tuple[Ty, Ctx]:
             tm.ty_checked = TyUnit()
             return tm.ty_checked, ctx
 
-        case TmInj(n, tm, ty_sum):
-            ty, ctx_remain = _check(tm, ctx)
+        case TmInj(n, tm_n, ty=ty_sum):
+            ty, ctx_remain = _check(tm_n, ctx)
 
             match ty_sum:
                 case TySum(tys):
@@ -55,11 +67,8 @@ def _check(tm: Tm, ctx: Ctx) -> tuple[Ty, Ctx]:
                         raise TypeError(f"Dict keys are not homogeneous.")
                     if not all(ty == tys_v[0] for ty in tys_v):
                         raise TypeError(f"Dict values are not homogeneous.")
-                    match tys_k[0]:
-                        case TySum(tys) if all(ty == TyUnit() for ty in tys):
-                            pass
-                        case _:
-                            raise TypeError(f"Key type must be of enum type, got {tys_k[0]=}.")
+                    if not is_enum(tys_k[0]):
+                        raise TypeError(f"Key type must be of enum type, got {tys_k[0]=}.")
                     tm.ty_checked = TyDict(tys_k[0], tys_v[0])
                     return tm.ty_checked, ctx_remain2
                 case _:
@@ -127,11 +136,8 @@ def _check(tm: Tm, ctx: Ctx) -> tuple[Ty, Ctx]:
             ty1, ctx_remain1 = _check(tm1, ctx)
             ty2, ctx_remain2 = _check(tm2, ctx_remain1)
 
-            match ty2:
-                case TySum(tys) if all(ty == TyUnit() for ty in tys):
-                    pass
-                case _:
-                    raise TypeError(f"Query type is not of enum type, got {ty2=}.")
+            if not is_enum(ty2):
+                raise TypeError(f"Query type is not of enum type, got {ty2=}.")
 
             match ty1:
                 case TyDict(ty_k, ty_v):
@@ -147,8 +153,8 @@ def check_val(v: Val) -> Ty:
         case VUnit():
             return TyUnit()
 
-        case VError():
-            return TyUnit()
+        case VError(ty=ty):
+            return ty if ty is not None else TyUnit()
 
         case VInj(n, v_inner, ty):
             match ty:
@@ -176,11 +182,8 @@ def check_val(v: Val) -> Ty:
                         raise TypeError(f"Dict keys are not homogeneous.")
                     if not all(ty == tys_v[0] for ty in tys_v):
                         raise TypeError(f"Dict values are not homogeneous.")
-                    match tys_k[0]:
-                        case TySum(tys) if all(ty == TyUnit() for ty in tys):
-                            pass
-                        case _:
-                            raise TypeError(f"Key type must be of enum type, got {tys_k[0]=}.")
+                    if not is_enum(tys_k[0]):
+                        raise TypeError(f"Key type must be of enum type, got {tys_k[0]=}.")
                     return TyDict(tys_k[0], tys_v[0])
                 case _:
                     raise TypeError(f"Dict requires product types, got {ty1=} and {ty2=}.")

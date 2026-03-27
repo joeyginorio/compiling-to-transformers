@@ -168,7 +168,7 @@ def compile(tm: Tm) -> nn.Module:
                         def forward(self, env: Env):
                             K = self.tm_ks_compiled(env).reshape(n, d_k)
                             V = self.tm_vs_compiled(env).reshape(n, d_v)
-                            return K.T @ V
+                            return (K.T @ V).flatten()
 
                     return NnDict()
 
@@ -176,16 +176,37 @@ def compile(tm: Tm) -> nn.Module:
                     raise TypeError(f"TmDict: expected TyProd types, got {tm_ks.ty_checked=}, {tm_vs.ty_checked=}.")
         
         case TmLookup(tm1, tm2, rel):
-            # We know the type of queries
-            # We know the type of keys
-            # So we can sample the behavior of rel on the basis for
-            # queries to compute the matrix?
-            raise NotImplementedError()
+            match (tm1.ty_checked, tm2.ty_checked):
+                case (TyDict(ty_k, ty_v), ty_q) if ty_q is not None:
+                    d_k = dim(ty_k)
+                    d_v = dim(ty_v)
+                    d_q = dim(ty_q)
+
+                    R_mat = torch.zeros(d_k, d_q)
+                    for ki, kv in enumerate(enum_basis(ty_k)):
+                        for qi, qv in enumerate(enum_basis(ty_q)):
+                            if rel(kv, qv):
+                                R_mat[ki, qi] = 1.0
+
+                    class NnLookup(nn.Module):
+                        def __init__(self):
+                            super().__init__()
+                            self.tm1_compiled = compile(tm1)
+                            self.tm2_compiled = compile(tm2)
+                            self.R: torch.Tensor
+                            self.register_buffer('R', R_mat)
+                        def forward(self, env: Env):
+                            M = self.tm1_compiled(env).reshape(d_k, d_v).T
+                            q = self.tm2_compiled(env)
+                            return M @ (self.R @ q)
+
+                    return NnLookup()
+
+                case _:
+                    raise TypeError(f"TmLookup: expected TyDict and enum query, got {tm1.ty_checked=}, {tm2.ty_checked=}.")
 
         case _:
             raise NotImplementedError()
-
-
 
 def compile_val(v: Val) -> nn.Module:
     match v:
@@ -200,12 +221,14 @@ def compile_val(v: Val) -> nn.Module:
 
             return NnUnit()
 
-        case VError():
+        case VError(ty=ty):
+            zero_tensor = zero(ty) if ty is not None else torch.tensor([0.0])
 
             class NnError(nn.Module):
                 def __init__(self):
                     super().__init__()
-                    self.value = nn.Parameter(torch.tensor([0.0]))
+                    self.value: torch.Tensor
+                    self.register_buffer('value', zero_tensor)
                 def forward(self, _: Env) -> torch.Tensor:
                     return self.value
 
@@ -228,6 +251,7 @@ def compile_val(v: Val) -> nn.Module:
 
 
         case VProd(tms, stored_env):
+            check_val(VProd(tms, stored_env))
             stored_compiled = {x: compile_val(v) for x, v in stored_env.items()}
 
             class NnProd(nn.Module):
@@ -242,8 +266,27 @@ def compile_val(v: Val) -> nn.Module:
 
             return NnProd()
 
-        case VDict(v1, v2):
-            raise NotImplementedError()
+        case VDict(v_ks, v_vs):
+            match (check_val(v_ks), check_val(v_vs)):
+                case (TyProd(key_tys), TyProd(val_tys)):
+                    n = len(key_tys)
+                    d_k = dim(key_tys[0])
+                    d_v = dim(val_tys[0])
+
+                    class NnDictVal(nn.Module):
+                        def __init__(self):
+                            super().__init__()
+                            self.v_ks_compiled = compile_val(v_ks)
+                            self.v_vs_compiled = compile_val(v_vs)
+                        def forward(self, env: Env) -> torch.Tensor:
+                            K = self.v_ks_compiled(env).reshape(n, d_k)
+                            V = self.v_vs_compiled(env).reshape(n, d_v)
+                            return (K.T @ V).flatten()
+
+                    return NnDictVal()
+                
+                case _:
+                    raise TypeError(f"VDict requires product types, got {check_val(v_ks)=} and {check_val(v_vs)=}.")
 
         case _:
             raise NotImplementedError()
@@ -266,3 +309,12 @@ def dim(ty: Ty) -> int:
 
 def zero(ty: Ty) -> torch.Tensor:
     return torch.zeros(dim(ty))
+
+def enum_basis(ty: Ty) -> list[Val]:
+    match ty:
+        case TyUnit():
+            return [VUnit()]
+        case TySum(tys):
+            return [VInj(i, VUnit(), ty) for i in range(len(tys))]
+        case _:
+            raise TypeError(f"enum_basis: expected enum type, got {ty=}")

@@ -95,6 +95,12 @@ def test_dict():
     vals = TmProd([TmUnit(), TmUnit()])
     assert check(TmDict(keys, vals), {}) == TyDict(_enum2, TyUnit())
 
+def test_dict_unit_key():
+    # TyUnit() is a valid 1-element enum key type
+    keys = TmProd([TmUnit(), TmUnit()])
+    vals = TmProd([TmUnit(), TmUnit()])
+    assert check(TmDict(keys, vals), {}) == TyDict(TyUnit(), TyUnit())
+
 def test_dict_consumes_ctx():
     keys = TmProd([TmInj(0, TmVar('x'), _enum2), TmInj(0, TmVar('x'), _enum2)])
     vals = TmProd([TmUnit(), TmUnit()])
@@ -121,7 +127,8 @@ def test_dict_length_mismatch():
         check(TmDict(keys, vals), {})
 
 def test_dict_keys_not_enum():
-    keys = TmProd([TmUnit(), TmUnit()])
+    # Key element type is TyProd([TyUnit()]), which is not an enum
+    keys = TmProd([TmProd([TmUnit()]), TmProd([TmUnit()])])
     vals = TmProd([TmUnit(), TmUnit()])
     with pytest.raises(TypeError):
         check(TmDict(keys, vals), {})
@@ -277,6 +284,7 @@ def test_lookup_not_dict_type():
         check(TmLookup(TmUnit(), q, lambda a, b: a == b), {})
 
 def test_lookup_query_not_enum():
+    # Query type is TyProd([TyUnit()]), which is not an enum
     d = _make_dict(_enum2, [TmUnit(), TmUnit()])
     with pytest.raises(TypeError):
-        check(TmLookup(d, TmUnit(), lambda a, b: a == b), {})
+        check(TmLookup(d, TmProd([TmUnit()]), lambda a, b: a == b), {})

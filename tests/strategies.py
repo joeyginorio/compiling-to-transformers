@@ -63,7 +63,7 @@ def gen_ty(max_leaves: int = 3) -> Gen[Ty]:
         lambda subty: st.one_of(
             gen_ty_sum(subty),
             gen_ty_prod(subty),
-            # gen_ty_dict(subty)
+            gen_ty_dict(subty)
         ),
         max_leaves = max_leaves
     )
@@ -73,7 +73,7 @@ def gen_ty_pos(max_leaves: int = 3) -> Gen[Ty]:
         gen_ty_unit(),
         lambda subty: st.one_of(
             gen_ty_sum(subty),
-            # gen_ty_dict(subty)
+            gen_ty_dict(subty)
         ),
         max_leaves = max_leaves
     )

@@ -23,9 +23,6 @@ def test_compiler_correctness(prog, data):
     vs_compiled = [compile_val(v)(env_compiled) for v in vs]
     vs_compiled_sum = torch.stack(vs_compiled).sum(dim=0)
     assert torch.equal(tm_compiled, vs_compiled_sum)
-    print(f"{tm_compiled.data=}")
-    print(f"{vs_compiled_sum.data=}")
-    print(f"===================")
 
 
 
@@ -512,13 +509,13 @@ def test_compile_dict_n1_unit():
     tm_vs.ty_checked = TyProd([TyUnit()])
     module = compile(TmDict(tm_ks, tm_vs))
     result = module({})
-    assert torch.equal(result, torch.tensor([[1.0]]))
+    assert torch.equal(result, torch.tensor([1.0]))
 
 
 def test_compile_dict_n1_wider_value():
     # dict(unit, inj_0 unit : Bool) : Unit ↦ Bool
     # K = [[1.0]] (1×1), V = [[1.0, 0.0]] (1×2)
-    # K.T @ V = [[1.0, 0.0]] (1×2)
+    # (K.T @ V).flatten() = [1.0, 0.0]
     Bool = TySum([TyUnit(), TyUnit()])
     tm_ks = TmUnit()
     tm_ks.ty_checked = TyProd([TyUnit()])
@@ -526,13 +523,13 @@ def test_compile_dict_n1_wider_value():
     tm_vs.ty_checked = TyProd([Bool])
     module = compile(TmDict(tm_ks, tm_vs))
     result = module({})
-    assert torch.equal(result, torch.tensor([[1.0, 0.0]]))
+    assert torch.equal(result, torch.tensor([1.0, 0.0]))
 
 
 def test_compile_dict_n1_wider_key():
     # dict(inj_0 unit : Bool, unit) : Bool ↦ Unit
     # K = [[1.0, 0.0]] (1×2), V = [[1.0]] (1×1)
-    # K.T @ V = [[1.0], [0.0]] (2×1)
+    # (K.T @ V).flatten() = [1.0, 0.0]
     Bool = TySum([TyUnit(), TyUnit()])
     tm_ks = TmInj(0, TmUnit(), Bool)
     tm_ks.ty_checked = TyProd([Bool])
@@ -540,27 +537,27 @@ def test_compile_dict_n1_wider_key():
     tm_vs.ty_checked = TyProd([TyUnit()])
     module = compile(TmDict(tm_ks, tm_vs))
     result = module({})
-    assert torch.equal(result, torch.tensor([[1.0], [0.0]]))
+    assert torch.equal(result, torch.tensor([1.0, 0.0]))
 
 
 def test_compile_dict_n2_unit():
     # dict([unit, unit], [unit, unit]) : Unit ↦ Unit with n=2
     # K = [[1.0], [1.0]] (2×1), V = [[1.0], [1.0]] (2×1)
-    # K.T @ V = [[2.0]] (entries sum, not outer product)
+    # (K.T @ V).flatten() = [2.0]  (entries sum, not outer product)
     tm_ks = TmProd([TmUnit(), TmUnit()])
     tm_ks.ty_checked = TyProd([TyUnit(), TyUnit()])
     tm_vs = TmProd([TmUnit(), TmUnit()])
     tm_vs.ty_checked = TyProd([TyUnit(), TyUnit()])
     module = compile(TmDict(tm_ks, tm_vs))
     result = module({})
-    assert torch.equal(result, torch.tensor([[2.0]]))
+    assert torch.equal(result, torch.tensor([2.0]))
 
 
 def test_compile_dict_n2_no_cross_terms():
     # dict([k1, k2], [v1, v2]) with k1=2, k2=3, v1=4, v2=5
     # K = [[2.0], [3.0]], V = [[4.0], [5.0]]
-    # K.T @ V = [[2*4 + 3*5]] = [[23.0]]
-    # NOT torch.outer([2,3],[4,5]) = [[8,10],[12,15]] (wrong shape, cross terms)
+    # (K.T @ V).flatten() = [23.0]
+    # NOT torch.outer([2,3],[4,5]).flatten() = [8,10,12,15] (wrong shape, cross terms)
     tm_ks = TmProd([TmVar('k1'), TmVar('k2')])
     tm_ks.ty_checked = TyProd([TyUnit(), TyUnit()])
     tm_vs = TmProd([TmVar('v1'), TmVar('v2')])
@@ -568,7 +565,139 @@ def test_compile_dict_n2_no_cross_terms():
     module = compile(TmDict(tm_ks, tm_vs))
     result = module({'k1': torch.tensor([2.0]), 'k2': torch.tensor([3.0]),
                      'v1': torch.tensor([4.0]), 'v2': torch.tensor([5.0])})
-    assert torch.equal(result, torch.tensor([[23.0]]))
+    assert torch.equal(result, torch.tensor([23.0]))
+
+
+# --- TmLookup ---
+
+def test_compile_lookup_unit_key_unit_value_match():
+    # dict({unit -> unit}) lookup unit, always-match -> [1.0]
+    tm_ks = TmProd([TmUnit()])
+    tm_ks.ty_checked = TyProd([TyUnit()])
+    tm_vs = TmProd([TmUnit()])
+    tm_vs.ty_checked = TyProd([TyUnit()])
+    tm1 = TmDict(tm_ks, tm_vs)
+    tm1.ty_checked = TyDict(TyUnit(), TyUnit())
+    tm2 = TmUnit()
+    tm2.ty_checked = TyUnit()
+    module = compile(TmLookup(tm1, tm2, lambda k, q: True))
+    result = module({})
+    assert torch.equal(result, torch.tensor([1.0]))
+
+
+def test_compile_lookup_bool_key_unit_value_query_tt_hit():
+    # dict({tt -> unit}) lookup tt, equality -> [1.0]
+    Bool = TySum([TyUnit(), TyUnit()])
+    tm_ks = TmProd([TmInj(0, TmUnit(), Bool)])
+    tm_ks.ty_checked = TyProd([Bool])
+    tm_vs = TmProd([TmUnit()])
+    tm_vs.ty_checked = TyProd([TyUnit()])
+    tm1 = TmDict(tm_ks, tm_vs)
+    tm1.ty_checked = TyDict(Bool, TyUnit())
+    tm2 = TmInj(0, TmUnit(), Bool)
+    tm2.ty_checked = Bool
+    module = compile(TmLookup(tm1, tm2, lambda k, q: k == q))
+    result = module({})
+    assert torch.equal(result, torch.tensor([1.0]))
+
+
+def test_compile_lookup_bool_key_unit_value_query_ff_miss():
+    # dict({tt -> unit}) lookup ff, equality -> [0.0] (no match)
+    Bool = TySum([TyUnit(), TyUnit()])
+    tm_ks = TmProd([TmInj(0, TmUnit(), Bool)])
+    tm_ks.ty_checked = TyProd([Bool])
+    tm_vs = TmProd([TmUnit()])
+    tm_vs.ty_checked = TyProd([TyUnit()])
+    tm1 = TmDict(tm_ks, tm_vs)
+    tm1.ty_checked = TyDict(Bool, TyUnit())
+    tm2 = TmInj(1, TmUnit(), Bool)
+    tm2.ty_checked = Bool
+    module = compile(TmLookup(tm1, tm2, lambda k, q: k == q))
+    result = module({})
+    assert torch.equal(result, torch.tensor([0.0]))
+
+
+def test_compile_lookup_bool_key_two_entries_selects_correct():
+    # dict({tt -> unit, ff -> unit}) lookup ff, equality -> [1.0]
+    Bool = TySum([TyUnit(), TyUnit()])
+    tm_ks = TmProd([TmInj(0, TmUnit(), Bool), TmInj(1, TmUnit(), Bool)])
+    tm_ks.ty_checked = TyProd([Bool, Bool])
+    tm_vs = TmProd([TmUnit(), TmUnit()])
+    tm_vs.ty_checked = TyProd([TyUnit(), TyUnit()])
+    tm1 = TmDict(tm_ks, tm_vs)
+    tm1.ty_checked = TyDict(Bool, TyUnit())
+    tm2 = TmInj(1, TmUnit(), Bool)
+    tm2.ty_checked = Bool
+    module = compile(TmLookup(tm1, tm2, lambda k, q: k == q))
+    result = module({})
+    assert torch.equal(result, torch.tensor([1.0]))
+
+
+def test_correctness_lookup_unit_key_unit_value():
+    # dict({unit -> unit}) lookup unit
+    tm_ks = TmProd([TmUnit()])
+    tm_ks.ty_checked = TyProd([TyUnit()])
+    tm_vs = TmProd([TmUnit()])
+    tm_vs.ty_checked = TyProd([TyUnit()])
+    tm1 = TmDict(tm_ks, tm_vs)
+    tm1.ty_checked = TyDict(TyUnit(), TyUnit())
+    tm2 = TmUnit()
+    tm2.ty_checked = TyUnit()
+    tm = TmLookup(tm1, tm2, lambda k, q: True)
+    values = evaluate(tm, {})
+    expected = torch.stack([compile_val(v)({}) for v in values]).sum(dim=0)
+    assert torch.equal(compile(tm)({}), expected)
+
+
+def test_correctness_lookup_bool_key_hit():
+    # dict({tt -> unit}) lookup tt
+    Bool = TySum([TyUnit(), TyUnit()])
+    tm_ks = TmProd([TmInj(0, TmUnit(), Bool)])
+    tm_ks.ty_checked = TyProd([Bool])
+    tm_vs = TmProd([TmUnit()])
+    tm_vs.ty_checked = TyProd([TyUnit()])
+    tm1 = TmDict(tm_ks, tm_vs)
+    tm1.ty_checked = TyDict(Bool, TyUnit())
+    tm2 = TmInj(0, TmUnit(), Bool)
+    tm2.ty_checked = Bool
+    tm = TmLookup(tm1, tm2, lambda k, q: k == q)
+    values = evaluate(tm, {})
+    expected = torch.stack([compile_val(v)({}) for v in values]).sum(dim=0)
+    assert torch.equal(compile(tm)({}), expected)
+
+
+def test_correctness_lookup_bool_key_miss():
+    # dict({tt -> unit}) lookup ff -> VError -> [0.0]
+    Bool = TySum([TyUnit(), TyUnit()])
+    tm_ks = TmProd([TmInj(0, TmUnit(), Bool)])
+    tm_ks.ty_checked = TyProd([Bool])
+    tm_vs = TmProd([TmUnit()])
+    tm_vs.ty_checked = TyProd([TyUnit()])
+    tm1 = TmDict(tm_ks, tm_vs)
+    tm1.ty_checked = TyDict(Bool, TyUnit())
+    tm2 = TmInj(1, TmUnit(), Bool)
+    tm2.ty_checked = Bool
+    tm = TmLookup(tm1, tm2, lambda k, q: k == q)
+    values = evaluate(tm, {})
+    expected = torch.stack([compile_val(v)({}) for v in values]).sum(dim=0)
+    assert torch.equal(compile(tm)({}), expected)
+
+
+def test_correctness_lookup_bool_key_two_entries():
+    # dict({tt -> unit, ff -> unit}) lookup ff
+    Bool = TySum([TyUnit(), TyUnit()])
+    tm_ks = TmProd([TmInj(0, TmUnit(), Bool), TmInj(1, TmUnit(), Bool)])
+    tm_ks.ty_checked = TyProd([Bool, Bool])
+    tm_vs = TmProd([TmUnit(), TmUnit()])
+    tm_vs.ty_checked = TyProd([TyUnit(), TyUnit()])
+    tm1 = TmDict(tm_ks, tm_vs)
+    tm1.ty_checked = TyDict(Bool, TyUnit())
+    tm2 = TmInj(1, TmUnit(), Bool)
+    tm2.ty_checked = Bool
+    tm = TmLookup(tm1, tm2, lambda k, q: k == q)
+    values = evaluate(tm, {})
+    expected = torch.stack([compile_val(v)({}) for v in values]).sum(dim=0)
+    assert torch.equal(compile(tm)({}), expected)
 
 
 # --- TmChoice ---
@@ -628,6 +757,66 @@ def test_correctness_choice_open():
     values = evaluate(tm, val_env)
     expected = torch.stack([compile_val(v)(tensor_env) for v in values]).sum(dim=0)
     assert torch.equal(compile(tm)(tensor_env), expected)
+
+
+def test_correctness_all_constructors():
+    # Verifies the compiler correctness theorem on a single open term that uses all 11
+    # term constructors. The output type is Unit+Unit+Unit.
+    #
+    # Program (free variables x, y, z : Unit+Unit):
+    #   let d = dict((x,) -> (y,)) in       -- TmLet, TmDict, TmProd, TmVar
+    #   let r = lookup(d, z, ==) in          -- TmLet, TmLookup, TmVar
+    #   case r of                            -- TmCase, TmVar
+    #     | inj_0 a -> (proj_0 (unit,unit)) ; choice(inj_0 a, inj_1 a)
+    #                                        -- TmSeq, TmProj, TmProd, TmUnit, TmChoice, TmInj, TmVar
+    #     | inj_1 b -> inj_2 b              -- TmInj, TmVar
+    output_ty = TySum([TyUnit(), TyUnit(), TyUnit()])
+    Bool = TySum([TyUnit(), TyUnit()])
+
+    tm_prod_units = TmProd([TmUnit(), TmUnit()])
+    branch0 = TmSeq(
+        TmProj(0, tm_prod_units),
+        TmChoice(
+            TmInj(0, TmVar('a'), output_ty),
+            TmInj(1, TmVar('a'), output_ty),
+        )
+    )
+    branch1 = TmInj(2, TmVar('b'), output_ty)
+
+    tm = TmLet('d',
+        TmDict(
+            TmProd([TmVar('x')]),
+            TmProd([TmVar('y')]),
+        ),
+        TmLet('r',
+            TmLookup(TmVar('d'), TmVar('z'), lambda a, b: a == b),
+            TmCase(TmVar('r'), ['a', 'b'], [branch0, branch1])
+        )
+    )
+
+    ctx: Ctx = {'x': Bool, 'y': Bool, 'z': Bool}
+    _check(tm, ctx)
+
+    def assert_correctness(env: dict[str, Val]) -> None:
+        vs = evaluate(tm, env)
+        env_t = {name: compile_val(v)({}) for name, v in env.items()}
+        lhs = compile(tm)(env_t)
+        rhs = torch.stack([compile_val(v)(env_t) for v in vs]).sum(dim=0)
+        assert torch.equal(lhs, rhs)
+
+    # Case 1: lookup matches, result is inj_0 -> branch0 -> TmChoice yields two nondeterministic values
+    env1: dict[str, Val] = {'x': VInj(0, VUnit(), Bool), 'y': VInj(0, VUnit(), Bool), 'z': VInj(0, VUnit(), Bool)}
+    assert evaluate(tm, env1) == [VInj(0, VUnit(), output_ty), VInj(1, VUnit(), output_ty)]
+    assert_correctness(env1)
+
+    # Case 2: lookup matches, result is inj_1 -> branch1 -> deterministic inj_2
+    env2: dict[str, Val] = {'x': VInj(0, VUnit(), Bool), 'y': VInj(1, VUnit(), Bool), 'z': VInj(0, VUnit(), Bool)}
+    assert evaluate(tm, env2) == [VInj(2, VUnit(), output_ty)]
+    assert_correctness(env2)
+
+    # Case 3: lookup fails (key != query) -> VError propagates as zero vector
+    env3: dict[str, Val] = {'x': VInj(0, VUnit(), Bool), 'y': VInj(0, VUnit(), Bool), 'z': VInj(1, VUnit(), Bool)}
+    assert_correctness(env3)
 
 
 # ============= `dim`: Unit Testing

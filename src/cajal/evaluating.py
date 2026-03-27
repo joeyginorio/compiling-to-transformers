@@ -22,12 +22,12 @@ def evaluate(tm: Tm, env: Env) -> list[Val]:
         case TmProd(tms):
             return [VProd(tms, env)]
 
-        case TmInj(n, tm, ty):
+        case TmInj(n, inner, ty):
             results = []
-            for v in evaluate(tm, env):
+            for v in evaluate(inner, env):
                 match v:
                     case VError():
-                        results.append(VError())
+                        results.append(VError(ty))
                     case _:
                         results.append(VInj(n, v, ty))
             return results
@@ -38,7 +38,7 @@ def evaluate(tm: Tm, env: Env) -> list[Val]:
                 for v2 in evaluate(tm2, env):
                     match (v1, v2):
                         case (VError(), _) | (_, VError()):
-                            results.append(VError())
+                            results.append(VError(tm.ty_checked))
                         case _:
                             results.append(VDict(v1, v2))
             return results
@@ -48,31 +48,31 @@ def evaluate(tm: Tm, env: Env) -> list[Val]:
             for v1 in evaluate(tm1, env):
                 match v1:
                     case VError():
-                        results.append(VError())
+                        results.append(VError(tm.ty_checked))
                     case VUnit():
                         results += evaluate(tm2, env)
                     case _:
                         raise ValueError(f"Unexpected value: {v1}")
             return results
 
-        case TmCase(tm, xs, tms):
+        case TmCase(tm=scrutinee, xs=xs, tms=case_tms):
             results = []
-            for v in evaluate(tm, env):
+            for v in evaluate(scrutinee, env):
                 match v:
                     case VError():
-                        results.append(VError())
-                    case VInj(n, v1, ty):
-                        results += evaluate(tms[n], env | {xs[n]: v1})
+                        results.append(VError(tm.ty_checked))
+                    case VInj(n, v1, _):
+                        results += evaluate(case_tms[n], env | {xs[n]: v1})
                     case _:
                         raise ValueError(f"Unexpected value: {v}")
             return results
 
-        case TmProj(n, tm):
+        case TmProj(n=n, tm=inner):
             results = []
-            for v in evaluate(tm, env):
+            for v in evaluate(inner, env):
                 match v:
                     case VError():
-                        results.append(VError())
+                        results.append(VError(tm.ty_checked))
                     case VProd(tms, stored_env):
                         if 0 <= n < len(tms):
                             results += evaluate(tms[n], stored_env)
@@ -97,7 +97,7 @@ def evaluate(tm: Tm, env: Env) -> list[Val]:
                 for v2 in evaluate(tm2, env):
                     match (v1, v2):
                         case (VError(), _) | (_, VError()):
-                            results.append(VError())
+                            results.append(VError(tm.ty_checked))
                         case (VDict(VProd(ks, ks_env), VProd(vs, vs_env)), q):
                             matched = False
                             for k, v in zip(ks, vs):
@@ -107,7 +107,7 @@ def evaluate(tm: Tm, env: Env) -> list[Val]:
                                         results += v_vals
                                         matched = True
                             if not matched:
-                                results.append(VError())
+                                results.append(VError(tm.ty_checked))
                         case _:
                             raise ValueError(f"Unexpected values: {v1}, {v2}")
             return results
