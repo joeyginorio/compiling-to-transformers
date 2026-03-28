@@ -1,12 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from experiments.reverse.dataset import encode, decode, generate_datasets
+from experiments.reverse.dataset import decode
 
-
-def interpret(logits: torch.Tensor) -> list[str]:
-    return [''.join(decode[i] for i in row.tolist()) for row in logits.argmax(dim=-1)]
-
+# --- Models ---
 
 class ModelD(nn.Module):
     def __init__(self):
@@ -21,7 +18,6 @@ class ModelT(nn.Module):
 
     def forward(self, x):
         return x
-
 
 class ModelI(nn.Module):
     def __init__(self, vocab_size: int = 27, d_model: int = 16, n_heads: int = 4, seq_len: int = 30):
@@ -45,3 +41,17 @@ class ModelI(nn.Module):
         r1 = h1 + x1
         r2 = self.mlp(r1) + r1
         return self.out(r2)
+    
+
+# --- Helpers ---
+
+def interpret_in(tokens: torch.Tensor) -> list[str]:
+    tokens_list = list(tokens)
+    result = []
+    for seq in tokens_list:
+        result.append(''.join([decode[int(i.item())] for i in seq])[:15])
+    return result
+
+def interpret_out(logits: torch.Tensor) -> list[str]:
+    ys = [''.join(decode[i] for i in row.tolist()) for row in logits.argmax(dim=-1)]
+    return [y[15:] for y in ys]
