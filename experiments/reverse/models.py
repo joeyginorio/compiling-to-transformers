@@ -5,7 +5,7 @@ from experiments.reverse.dataset import encode, decode, generate_datasets
 
 
 def interpret(logits: torch.Tensor) -> list[str]:
-    return [decode[int(i.item())] for i in logits.squeeze(0).argmax(dim=-1)]
+    return [''.join(decode[i] for i in row.tolist()) for row in logits.argmax(dim=-1)]
 
 
 class ModelD(nn.Module):
@@ -26,15 +26,22 @@ class ModelT(nn.Module):
 class ModelI(nn.Module):
     def __init__(self, vocab_size: int = 27, d_model: int = 16, n_heads: int = 4, seq_len: int = 30):
         super().__init__()
-        self.seq_len = seq_len
+        self.register_buffer('mask', nn.Transformer.generate_square_subsequent_mask(seq_len))
+        self.register_buffer('positions', torch.arange(seq_len))
+
         self.tok_emb = nn.Embedding(vocab_size, d_model)
         self.pos_emb = nn.Embedding(seq_len, d_model)
         self.attn = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+        self.mlp = nn.Sequential(
+            nn.Linear(d_model, 4 * d_model),
+            nn.ReLU(),
+            nn.Linear(4 * d_model, d_model),
+        )
         self.out = nn.Linear(d_model, vocab_size)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = self.tok_emb(x) + self.pos_emb(torch.arange(self.seq_len, device=x.device))
-        mask = nn.Transformer.generate_square_subsequent_mask(self.seq_len, device=x.device)
-        h, _ = self.attn(h, h, h, attn_mask=mask, is_causal=True)
-        return self.out(h)
-
+        x1 = self.tok_emb(x) + self.pos_emb(self.positions)
+        h1, _ = self.attn(x1, x1, x1, attn_mask=self.mask, is_causal=True, need_weights=False)
+        r1 = h1 + x1
+        r2 = self.mlp(r1) + r1
+        return self.out(r2)
