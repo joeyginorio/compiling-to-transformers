@@ -35,13 +35,14 @@ class ReverseDataset(Dataset):
         toks = self.tokens[idx]
         return toks[:-1], toks[1:]
 
-def generate_datasets(out_dir: Path = Path("experiments/reverse/data/dataset")) -> dict[str, ReverseDataset]:
+def generate_datasets(save=False, out_dir: Path = Path("experiments/reverse/data/dataset")) -> dict[str, ReverseDataset]:
     rng = random.Random(SEED)
     splits = {"train": 10_000, "val": 1_000, "test": 1_000}
     result = {}
     for name, n in splits.items():
         examples = generate_split(n, rng)
-        (out_dir / f"{name}.txt").write_text("\n".join(examples) + "\n")
+        if save:
+            (out_dir / f"{name}.txt").write_text("\n".join(examples) + "\n")
         result[name] = ReverseDataset(examples)
     return result
 
