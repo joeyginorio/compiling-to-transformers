@@ -22,36 +22,37 @@ _data_dir = Path("experiments/reverse/data/learning")
 
 # --- Measurements ---
 
-_probes = [
+_inputs = [
     "a b c d e f g h i j k l m n o | o n m l k j i h g f e d c b a",
     "o n m l k j i h g f e d c b a | a b c d e f g h i j k l m n o",
 ]
-_probes = torch.stack([tokenize(s)[:-1] for s in _probes]).to(DEVICE)
+_inputs = torch.stack([tokenize(s)[:-1] for s in _inputs]).to(DEVICE)
 
 @dataclass
 class Measure:
     model_name: str
-    probes: torch.Tensor = field(default=_probes)
+    inputs: torch.Tensor = field(default=_inputs)
     records: list[dict] = field(default_factory=list)
     checkpoints: list[dict] = field(default_factory=list)
 
-    _every: int = field(default=50)
+    _every: int = field(default=10)
 
-    def record(self, loss: float, model: nn.Module, loader: DataLoader,
+    def record(self, model: nn.Module, train_loader: DataLoader, val_loader: DataLoader,
                step: int, seed: int, lr: float, batch_size: int) -> None:
         if step % self._every == 0:
-            val_loss = evaluate(model, loader)
-            probe_outputs = self.run_probes(model)
+            train_loss = evaluate(model, train_loader)
+            val_loss = evaluate(model, val_loader)
+            outputs = self.run_inputs(model)
             self.records.append({"step": step,
                                  "seed": seed,
                                  "lr": lr,
                                  "batch_size": batch_size,
-                                 "train_loss": loss,
+                                 "train_loss": train_loss,
                                  "val_loss": val_loss,
-                                 "probe_outputs": probe_outputs})
-            print(f"step {step:5d}  train {loss:.4f}  val {val_loss:.4f}")
+                                 "outputs": outputs})
+            print(f"step {step:5d}  train {train_loss:.4f}  val {val_loss:.4f}")
 
-        if step % (self._every * 4) == 0:
+        if step % (self._every * 5) == 0:
             self.checkpoints.append({
                 "step": step,
                 "seed": seed,
@@ -60,11 +61,11 @@ class Measure:
                 "state_dict": {k: v.cpu() for k, v in model.state_dict().items()},
             })
 
-    def run_probes(self, model: nn.Module) -> list[str]:
+    def run_inputs(self, model: nn.Module) -> list[str]:
         training = model.training
         model.eval()
         with torch.no_grad():
-            result = interpret_out(model(self.probes))
+            result = interpret_out(model(self.inputs))
         model.train(training)
         return result
 
@@ -101,7 +102,7 @@ def train(model: nn.Module, measure: Measure, epochs: int = 10, batch_size: int 
             loss = masked_loss(logits, y)
             loss.backward()
             optimizer.step()
-            measure.record(loss.item(), model, val_loader, step=step, seed=seed, lr=lr, batch_size=batch_size)
+            measure.record(model, train_loader, val_loader, step=step, seed=seed, lr=lr, batch_size=batch_size)
             step += 1
 
     return measure
@@ -112,13 +113,16 @@ _lrs = [1e-2, 1e-3, 1e-4]
 _bs = [32, 64, 128]
 
 def run(models: list[type[nn.Module]], seeds: list[int] = _seeds, lrs: list[float] = _lrs,
-        batch_sizes: list[int] = _bs, epochs: int = 10) -> list[Measure]:
+        batch_sizes: list[int] = _bs, epochs: int = 8) -> list[Measure]:
     measures = []
     for model in models:
         measure = Measure(model_name=model.__name__.lower())
         for seed in seeds:
             for lr in lrs:
                 for batch_size in batch_sizes:
+                    print(f"\n{'='*40}")
+                    print(f"  {model.__name__}  seed={seed}  lr={lr}  bs={batch_size}")
+                    print(f"{'='*40}")
                     train(model(), measure, epochs=epochs, batch_size=batch_size, lr=lr, seed=seed)
         measure.save()
         measures.append(measure)
