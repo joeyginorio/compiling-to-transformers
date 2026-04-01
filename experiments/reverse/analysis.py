@@ -3,10 +3,11 @@ import torch
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.lines as mlines
 import seaborn as sns
 import torch.nn as nn
 from pathlib import Path
-from sklearn.decomposition import PCA as SklearnPCA
+from sklearn.decomposition import PCA as SklearnPCA  # type: ignore
 from torch.utils.data import DataLoader
 from experiments.reverse.models import ModelD, ModelT, ModelI
 from experiments.reverse.dataset import datasets, decode
@@ -69,12 +70,12 @@ def behavioral_dynamics(lr: float | None = None, batch_size: int | None = None, 
         run_df = df[(df["lr"] == best_lr) & (df["batch_size"] == best_bs)].copy()
         model_label = model_name[-1].upper()
         run_df["model"] = model_label
-        frames.append(run_df[["step", "seed", "train_loss", "val_loss", "model"]])
+        frames.append(run_df[["step", "seed", "train_loss", "val_loss", "model"]])  # type: ignore
 
         # Build heatmap rows for this model using its best config
-        run_df["output2"] = run_df["outputs"].apply(lambda s: ast.literal_eval(s)[1])
+        run_df["output2"] = run_df["outputs"].apply(lambda s: ast.literal_eval(s)[1])  # type: ignore
         for i, ch in enumerate("abcdefghijklmno"):
-            result = run_df.groupby("step")["output2"].apply(
+            result = run_df.groupby("step")["output2"].apply(  # type: ignore
                 lambda g, c=ch, pos=i: (g.str[pos] == c).mean()
             ).reset_index(name="prop_correct")
             result["char"] = ch
@@ -153,6 +154,7 @@ def pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
         result[key] = (fitted, matrix)
     return result
 
+# plot_pca(ModelI(), 2500, .001, 32, 3, [16,17,18], 'r1')
 def plot_pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
              positions: list[int], rep: str = "r1") -> None:
     result = pca(model, step, lr, batch_size, seed, positions=positions)
@@ -167,13 +169,24 @@ def plot_pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
     target_tokens = all_tokens[:, [p + 1 for p in positions]].numpy().reshape(N * n_pos)
     target_chars = np.array([decode[t] for t in target_tokens])
 
-    df = pd.DataFrame(projected, columns=["PC1", "PC2"])
+    df = pd.DataFrame(projected, columns=["PC1", "PC2"])  # type: ignore
     df["target"] = target_chars
     df["Position"] = pos_array
 
     var = fitted.explained_variance_ratio_
+    model_key = model.__class__.__name__[-1].upper()
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(6, 9), sharex=True)
+    title = fig.suptitle(f"Model {model_key}", fontsize=18)
+    fig.canvas.draw()
+    renderer = getattr(fig.canvas, "renderer", None)
+    bb = title.get_window_extent(renderer=renderer)
+    bb_fig = bb.transformed(fig.transFigure.inverted())
+    fig.add_artist(mlines.Line2D(                                         
+        [bb_fig.x0, bb_fig.x1], [bb_fig.y0, bb_fig.y0],
+        transform=fig.transFigure,                                        
+        color=palette[model_key], linewidth=2                             
+    ))
 
     # top: colored by target
     sns.scatterplot(data=df, x="PC1", y="PC2", hue="target",
@@ -194,7 +207,6 @@ def plot_pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
     ax2.set_xlabel(f"PC1 ({var[0]:.1%})")
     ax2.set_ylabel(f"PC2 ({var[1]:.1%})")
 
-    model_key = model.__class__.__name__[-1].upper()
     fname = f"pca_{model_key}_step{step}_lr{lr}_bs{batch_size}_seed{seed}_{rep}.pdf"
     plt.tight_layout()
     fig.savefig(_data_dir.parent / "plots" / fname)
@@ -211,9 +223,9 @@ def prop_correct(lr: float, batch_size: int) -> pd.DataFrame:
     for model_name in models:
         df = pd.read_csv(_data_dir / f"{model_name}.csv")
         df = df[(df["lr"] == lr) & (df["batch_size"] == batch_size)].copy()
-        df["output2"] = df["outputs"].apply(lambda s: ast.literal_eval(s)[1])
+        df["output2"] = df["outputs"].apply(lambda s: ast.literal_eval(s)[1])  # type: ignore
         for i, ch in enumerate("abcdefghijklmno"):
-            result = df.groupby("step")["output2"].apply(
+            result = df.groupby("step")["output2"].apply(  # type: ignore
                 lambda g, c=ch, idx=i: (g.str[idx] == c).mean()
             ).reset_index(name="prop_correct")
             result["char"] = ch
