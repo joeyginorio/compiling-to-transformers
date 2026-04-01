@@ -9,7 +9,7 @@ from pathlib import Path
 from sklearn.decomposition import PCA as SklearnPCA
 from torch.utils.data import DataLoader
 from experiments.reverse.models import ModelD, ModelT, ModelI
-from experiments.reverse.dataset import datasets
+from experiments.reverse.dataset import datasets, decode
 
 # -- Globals ---
 
@@ -153,8 +153,55 @@ def pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
         result[key] = (fitted, matrix)
     return result
 
+def plot_pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
+             positions: list[int], rep: str = "r1") -> None:
+    result = pca(model, step, lr, batch_size, seed, positions=positions)
+    fitted, matrix = result[rep]
 
-# --- Probes --- 
+    projected = fitted.transform(matrix)[:, :2]
+    n_pos = len(positions)
+    N = len(matrix) // n_pos
+    pos_array = np.tile(positions, N)
+
+    all_tokens = torch.stack([datasets["probe"][i][0] for i in range(len(datasets["probe"]))])
+    target_tokens = all_tokens[:, [p + 1 for p in positions]].numpy().reshape(N * n_pos)
+    target_chars = np.array([decode[t] for t in target_tokens])
+
+    df = pd.DataFrame(projected, columns=["PC1", "PC2"])
+    df["target"] = target_chars
+    df["Position"] = pos_array
+
+    var = fitted.explained_variance_ratio_
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(6, 9), sharex=True)
+
+    # top: colored by target
+    sns.scatterplot(data=df, x="PC1", y="PC2", hue="target",
+                    palette="turbo", alpha=0.5, s=10, ax=ax1, legend=False)
+    for char, group in df.groupby("target"):
+        cx, cy = float(group["PC1"].mean()), float(group["PC2"].mean())
+        ax1.text(cx, cy, str(char), fontsize=11, fontweight="bold", ha="center", va="center",
+                 bbox=dict(facecolor="white", edgecolor="none", pad=1.5,
+                           alpha=0.6, boxstyle="circle,pad=0.5"))
+    ax1.set_aspect("equal")
+    ax1.set_xlabel("")
+    ax1.set_ylabel(f"PC2 ({var[1]:.1%})")
+
+    # bottom: colored by position
+    sns.scatterplot(data=df, x="PC1", y="PC2", hue="Position",
+                    palette="turbo", alpha=0.5, s=10, ax=ax2)
+    ax2.set_aspect("equal")
+    ax2.set_xlabel(f"PC1 ({var[0]:.1%})")
+    ax2.set_ylabel(f"PC2 ({var[1]:.1%})")
+
+    model_key = model.__class__.__name__[-1].upper()
+    fname = f"pca_{model_key}_step{step}_lr{lr}_bs{batch_size}_seed{seed}_{rep}.pdf"
+    plt.tight_layout()
+    fig.savefig(_data_dir.parent / "plots" / fname)
+    plt.show()
+
+
+# --- Probes ---
 
 # --- Helpers ---
 
