@@ -35,12 +35,17 @@ class ModelI(nn.Module):
         )
         self.out = nn.Linear(d_model, vocab_size)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, representations: bool = False) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
         x1 = self.tok_emb(x) + self.pos_emb(self.positions)
         h1, _ = self.attn(x1, x1, x1, attn_mask=self.mask, is_causal=True, need_weights=False)
         r1 = h1 + x1
         r2 = self.mlp(r1) + r1
-        return self.out(r2)
+        logits = self.out(r2)
+        
+        if representations:
+            return logits, {"x1": x1, "h1": h1, "r1": r1, "r2": r2}
+        else:
+            return logits
     
 
 # --- Helpers ---
