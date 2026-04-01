@@ -37,7 +37,7 @@ class ReverseDataset(Dataset):
 
 def generate_datasets(save=False, out_dir: Path = Path("experiments/reverse/data/dataset")) -> dict[str, ReverseDataset]:
     rng = random.Random(SEED)
-    splits = {"train": 10_000, "val": 1_000, "test": 1_000}
+    splits = {"train": 10_000, "probe": 5_000, "val": 1_000, "test": 1_000}
     result = {}
     for name, n in splits.items():
         examples = generate_split(n, rng)
