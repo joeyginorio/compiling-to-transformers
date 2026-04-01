@@ -1,8 +1,15 @@
 import ast
+import torch
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import torch.nn as nn
 from pathlib import Path
+from sklearn.decomposition import PCA as SklearnPCA
+from torch.utils.data import DataLoader
+from experiments.reverse.models import ModelD, ModelT, ModelI
+from experiments.reverse.dataset import datasets
 
 # -- Globals ---
 
@@ -117,8 +124,35 @@ def behavioral_dynamics(lr: float | None = None, batch_size: int | None = None, 
     plt.show()
 
 
-
 # --- PCA ---
+def pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
+        positions: list[int] | None = None) -> dict[str, tuple[SklearnPCA, np.ndarray]]:
+    model_name = model.__class__.__name__.lower()
+    ckpt_path = _data_dir / "checkpoints" / model_name / f"checkpoint_step{step}_seed{seed}_lr{lr}_bs{batch_size}.pt"
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+    model.load_state_dict(ckpt["state_dict"])
+    model.eval()
+
+    loader = DataLoader(datasets["probe"], batch_size=1024)
+    rep_lists: dict[str, list[torch.Tensor]] = {}
+    with torch.no_grad():
+        for x, _ in loader:
+            _, reps = model(x, representations=True)
+            for key, tensor in reps.items():
+                rep_lists.setdefault(key, []).append(tensor)
+
+    result = {}
+    for key, tensors in rep_lists.items():
+        r = torch.cat(tensors, dim=0)
+        if positions is not None:
+            r = r[:, positions, :]
+        N, seq_len, d_model = r.shape
+        matrix = r.reshape(N * seq_len, d_model).numpy()
+        fitted = SklearnPCA()
+        fitted.fit(matrix)
+        result[key] = (fitted, matrix)
+    return result
+
 
 # --- Probes --- 
 
