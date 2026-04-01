@@ -46,7 +46,6 @@ models = ["modeld", "modelu", "modelt", "modeli"]
 
 
 # --- Behavioral Dynamics ---
-
 def behavioral_dynamics(lr: float | None = None, batch_size: int | None = None, max_step: int = 800):
     frames: list[pd.DataFrame] = []
     hm_frames: list[pd.DataFrame] = []
@@ -125,6 +124,7 @@ def behavioral_dynamics(lr: float | None = None, batch_size: int | None = None, 
 
 
 # --- PCA ---
+
 def pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
         positions: list[int] | None = None) -> dict[str, tuple[SklearnPCA, np.ndarray]]:
     model_name = model.__class__.__name__.lower()
