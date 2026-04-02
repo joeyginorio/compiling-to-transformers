@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from experiments.reverse.dataset import datasets, tokenize, SEQ_LEN
-from experiments.reverse.models import interpret_out
+from experiments.reverse.models import ModelI, ModelD, interpret_out
 
 
 # --- Globals ---
