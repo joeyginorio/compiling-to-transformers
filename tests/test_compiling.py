@@ -1,7 +1,7 @@
 import torch
 import hypothesis.strategies as st
 from cajal.syntax import *
-from cajal.compiling import compile, compile_val, dim, zero
+from cajal.compiling import compile, compile_val, dim, zero, to_multilinear
 from cajal.evaluating import evaluate
 from cajal.typing import _check
 from hypothesis import given, assume, settings, HealthCheck
@@ -37,6 +37,18 @@ def test_compiler_propagates_gradients(prog, data):
     y = compile(tm)(env_compiled).sum()
     y.backward()
     assert any(v.grad is not None for v in env_compiled.values())
+
+@settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow], deadline=None)
+@given(gen_prog(), st.data())
+def test_multilinear_equivalent(prog, data):
+    ctx, tm, _ = prog
+    _check(tm, ctx.flat())
+    env = {x: data.draw(gen_val(ty_x, set())) for x, ty_x in ctx.flat().items()}
+
+    env_compiled = {x: torch.randn_like(compile_val(v)({})).detach().requires_grad_() for x, v in env.items()}
+    compiled_tm = compile(tm)
+    compiled_lmap = to_multilinear(compiled_tm)
+    torch.testing.assert_close(compiled_tm(env_compiled), compiled_lmap(env_compiled))
 
 
 
