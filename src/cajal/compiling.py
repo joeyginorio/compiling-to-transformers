@@ -24,11 +24,8 @@ def compile(tm: Tm) -> nn.Module:
         case TmUnit():
 
             class NnUnit(nn.Module):
-                def __init__(self):
-                    super().__init__()
-                    self.value = nn.Parameter(torch.tensor([1.0]))
                 def forward(self, _: Env) -> torch.Tensor:
-                    return self.value
+                    return torch.tensor([1.0])
 
             return NnUnit()
 
@@ -210,11 +207,8 @@ def compile_val(v: Val) -> nn.Module:
         case VUnit():
 
             class NnUnit(nn.Module):
-                def __init__(self):
-                    super().__init__()
-                    self.value = nn.Parameter(torch.tensor([1.0]))
                 def forward(self, _: Env) -> torch.Tensor:
-                    return self.value
+                    return torch.tensor([1.0])
 
             return NnUnit()
 
@@ -289,8 +283,8 @@ def compile_val(v: Val) -> nn.Module:
             raise NotImplementedError()
 
 
-# --- Helpers ---
 
+# --- Helpers ---
 
 def dim(ty: Ty) -> int:
     match ty:
@@ -306,6 +300,71 @@ def dim(ty: Ty) -> int:
 
 def zero(ty: Ty) -> torch.Tensor:
     return torch.zeros(dim(ty))
+
+def to_multilinear(module: nn.Module, rand: bool = False) -> nn.Module:
+
+    class NnMultilinear(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.lmap: nn.Linear | None = None
+            self.var_names: list[str] | None = None
+
+        def build_lmap(self, env: Env) -> nn.Linear:
+            # Fix a canonical ordering of free variables and their dimensions.
+            var_names = list(env.keys())
+            dims = [env[x].shape[0] for x in var_names]
+
+            # Standard basis for each variable's vector space.
+            bases = [torch.eye(d) for d in dims]
+
+            # Dimension of the tensor product space (d_x1 * d_x2 * ... * d_xk).
+            d_in = 1
+            for d in dims:
+                d_in *= d
+
+            # Enumerate all combinations of basis vectors across variables.
+            # Starting from [{}], each step expands by all basis vectors of the next variable,
+            # giving all combinations: {x1: e_i, x2: e_j, ...} for all i, j, ...
+            env_samples: list[Env] = [{}]
+            for x, base in zip(var_names, bases):
+                env_samples = [s | {x: e} for s in env_samples for e in base]
+
+            # Sample the module on each basis combination.
+            # Each output is one column of the weight matrix W.
+            columns = []
+            for env_sample in env_samples:
+                with torch.no_grad():
+                    columns.append(module(env_sample))
+
+            # Stack columns into W of shape (d_out, d_in).
+            # W represents the linear map in the tensor product space such that
+            # W @ kron(x1, x2, ..., xk) = module({x1: x1, x2: x2, ...}).
+            d_out = columns[0].shape[0]
+            W = torch.stack(columns, dim=1)
+
+            self.var_names = var_names
+            lmap = nn.Linear(d_in, d_out, bias=False)
+            
+            if not rand:
+                with torch.no_grad():
+                    lmap.weight.copy_(W)
+
+            return lmap
+
+        def forward(self, env: Env) -> torch.Tensor:
+            # Build the linear map on the first call, then cache it.
+            if self.lmap is None:
+                self.lmap = self.build_lmap(env)
+            assert self.lmap is not None and self.var_names is not None
+            # Map the environment to the tensor product space via successive Kronecker products.
+            tensors = [env[x] for x in self.var_names]
+            kron = tensors[0] if tensors else torch.tensor([1.0])
+            for t in tensors[1:]:
+                kron = torch.kron(kron, t)
+            return self.lmap(kron)
+
+    return NnMultilinear()
+
 
 def enum_basis(ty: Ty) -> list[Val]:
     match ty:
