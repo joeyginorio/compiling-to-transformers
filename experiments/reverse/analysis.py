@@ -4,12 +4,13 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
+import matplotlib.patches as mpatches
 import seaborn as sns
 import torch.nn as nn
 from pathlib import Path
 from sklearn.decomposition import PCA as SklearnPCA  # type: ignore
 from torch.utils.data import DataLoader
-from experiments.reverse.models import ModelD, ModelT, ModelI
+from experiments.reverse.models import ModelD, ModelT, ModelI, ModelU
 from experiments.reverse.dataset import datasets, decode
 
 # -- Globals ---
@@ -209,6 +210,71 @@ def plot_pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
 
     fname = f"pca_{model_key}_step{step}_lr{lr}_bs{batch_size}_seed{seed}_{rep}.pdf"
     plt.tight_layout()
+    fig.savefig(_data_dir.parent / "plots" / fname)
+    plt.show()
+
+
+def plot_pca_all(models_list: list[nn.Module], step: int, lr: float, batch_size: int, seed: int,
+                 positions: list[int], rep: str = "r1") -> None:
+    n = len(models_list)
+    fig, axes = plt.subplots(2, n, figsize=(4 * n, 7), squeeze=True)
+
+    for col, model in enumerate(models_list):
+        result = pca(model, step, lr, batch_size, seed, positions=positions)
+        fitted, matrix = result[rep]
+
+        projected = fitted.transform(matrix)[:, :2]
+        n_pos = len(positions)
+        N = len(matrix) // n_pos
+        pos_array = np.tile(positions, N)
+
+        all_tokens = torch.stack([datasets["probe"][i][0] for i in range(len(datasets["probe"]))])
+        target_tokens = all_tokens[:, [p + 1 for p in positions]].numpy().reshape(N * n_pos)
+        target_chars = np.array([decode[t] for t in target_tokens])
+
+        df = pd.DataFrame(projected, columns=["PC1", "PC2"])  # type: ignore
+        df["target"] = target_chars
+        df["Position"] = pos_array
+
+        var = fitted.explained_variance_ratio_
+        model_key = model.__class__.__name__[-1].upper()
+
+        ax1, ax2 = axes[0, col], axes[1, col]
+        ax1.set_title(f"Model {model_key}", fontsize=18, color=palette[model_key], fontweight="bold", pad=12)
+
+        # top: colored by target
+        sns.scatterplot(data=df, x="PC1", y="PC2", hue="target",
+                        palette="turbo", alpha=0.5, s=10, ax=ax1, legend=False)
+        for char, group in df.groupby("target"):
+            cx, cy = float(group["PC1"].mean()), float(group["PC2"].mean())
+            ax1.text(cx, cy, str(char), fontsize=11, fontweight="bold", ha="center", va="center",
+                     bbox=dict(facecolor="white", edgecolor="none", pad=1.5,
+                               alpha=0.6, boxstyle="circle,pad=0.5"))
+        ax1.set_anchor("N")
+        ax1.set_xlabel("")
+        ax1.set_ylabel(f"PC2 ({var[1]:.1%})")
+        if col == 0:
+            cmap = plt.cm.get_cmap("turbo")
+            n_swatches = 6
+            handles = [mpatches.Patch(color=cmap(i / (n_swatches - 1)), alpha=0.5) for i in range(n_swatches)]
+            ax1.legend(handles=handles, labels=[""] * n_swatches, title="Target Token",
+                       loc="upper left", ncol=n_swatches, handlelength=1,
+                       handletextpad=0, columnspacing=0.2)
+
+        # bottom: colored by position
+        sns.scatterplot(data=df, x="PC1", y="PC2", hue="Position",
+                        palette="turbo", alpha=0.5, s=10, ax=ax2)
+        ax2.set_anchor("N")
+        if col == 0:
+            ax2.legend(loc="upper left", title="Position")
+        else:
+            ax2.legend_.remove() if ax2.legend_ else None
+        ax2.set_xlabel(f"PC1 ({var[0]:.1%})")
+        ax2.set_ylabel(f"PC2 ({var[1]:.1%})")
+
+    fname = f"pca_all_step{step}_lr{lr}_bs{batch_size}_seed{seed}_{rep}.pdf"
+    fig.tight_layout()
+    fig.subplots_adjust(wspace=0.35)
     fig.savefig(_data_dir.parent / "plots" / fname)
     plt.show()
 
