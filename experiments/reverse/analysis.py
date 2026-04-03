@@ -121,7 +121,10 @@ def behavioral_dynamics(lr: float | None = None, batch_size: int | None = None, 
     fig.suptitle("Behavioral Dynamics", fontsize=18)
     fig.set_size_inches(8, 12)
     fig.tight_layout()
-    fig.savefig(_data_dir.parent / "plots" / "behavioral_dynamics.pdf")
+    lr_tag = f"_lr{lr}" if lr is not None else "_lrbest"
+    bs_tag = f"_bs{batch_size}" if batch_size is not None else "_bsbest"
+    fname = f"behavioral_dynamics{lr_tag}{bs_tag}_maxstep{max_step}.pdf"
+    fig.savefig(_data_dir.parent / "plots" / fname)
     plt.show()
 
 
