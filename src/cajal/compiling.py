@@ -301,13 +301,15 @@ def dim(ty: Ty) -> int:
 def zero(ty: Ty) -> torch.Tensor:
     return torch.zeros(dim(ty))
 
-def to_multilinear(module: nn.Module, rand: bool = False) -> nn.Module:
+def to_multilinear(module: nn.Module, rand: bool = False, sample_env: 'Env | None' = None) -> nn.Module:
 
     class NnMultilinear(nn.Module):
         def __init__(self):
             super().__init__()
             self.lmap: nn.Linear | None = None
             self.var_names: list[str] | None = None
+            if sample_env is not None:
+                self.lmap = self.build_lmap(sample_env)
 
         def build_lmap(self, env: Env) -> nn.Linear:
             # Fix a canonical ordering of free variables and their dimensions.
