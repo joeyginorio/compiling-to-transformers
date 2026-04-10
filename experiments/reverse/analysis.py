@@ -1,5 +1,9 @@
 import ast
+import joblib
 import torch
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -9,9 +13,12 @@ import seaborn as sns
 import torch.nn as nn
 from pathlib import Path
 from sklearn.decomposition import PCA as SklearnPCA  # type: ignore
+from sklearn.linear_model import LogisticRegression  # type: ignore
+from sklearn.model_selection import train_test_split  # type: ignore
 from torch.utils.data import DataLoader
 from experiments.reverse.models import ModelD, ModelT, ModelI, ModelU
-from experiments.reverse.dataset import datasets, decode
+from experiments.reverse.dataset import datasets, decode, SEQ_LEN
+from experiments.reverse.learning import evaluate, _seeds
 
 # -- Globals ---
 
@@ -48,7 +55,7 @@ models = ["modeld", "modelu", "modelt", "modeli"]
 
 
 # --- Behavioral Dynamics ---
-def behavioral_dynamics(lr: float | None = None, batch_size: int | None = None, max_step: int = 800):
+def plot_behavioral_dynamics(lr: float | None = None, batch_size: int | None = None, max_step: int = 800):
     frames: list[pd.DataFrame] = []
     hm_frames: list[pd.DataFrame] = []
 
@@ -103,8 +110,8 @@ def behavioral_dynamics(lr: float | None = None, batch_size: int | None = None, 
         ax_hm.tick_params(labelbottom=False)
 
     # Train loss
-    sns.lineplot(data=data, x="step", y="train_loss", hue="model", units="seed",
-                 estimator=None, palette=palette, hue_order=hue_order, ax=ax_train)
+    sns.lineplot(data=data, x="step", y="train_loss", hue="model",
+                 palette=palette, hue_order=hue_order, ax=ax_train, errorbar="sd")
     ax_train.set_ylabel("Train Loss")
     ax_train.set_xlabel("")
     ax_train.legend(title="Model")
@@ -112,8 +119,8 @@ def behavioral_dynamics(lr: float | None = None, batch_size: int | None = None, 
     ax_train.tick_params(labelbottom=False)
 
     # Val loss
-    sns.lineplot(data=data, x="step", y="val_loss", hue="model", units="seed",
-                 estimator=None, palette=palette, hue_order=hue_order, ax=ax_val)
+    sns.lineplot(data=data, x="step", y="val_loss", hue="model",
+                 palette=palette, hue_order=hue_order, ax=ax_val, errorbar="sd")
     ax_val.set_xlabel("Step")
     ax_val.set_ylabel("Val Loss")
     ax_val.legend(title="Model")
@@ -131,7 +138,8 @@ def behavioral_dynamics(lr: float | None = None, batch_size: int | None = None, 
 # --- PCA ---
 
 def pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
-        positions: list[int] | None = None) -> dict[str, tuple[SklearnPCA, np.ndarray]]:
+        positions: list[int] | None = None,
+        ablate: dict[str, bool] | None = None) -> dict[str, tuple[SklearnPCA, np.ndarray]]:
     model_name = model.__class__.__name__.lower()
     ckpt_path = _data_dir / "checkpoints" / model_name / f"checkpoint_step{step}_seed{seed}_lr{lr}_bs{batch_size}.pt"
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
@@ -142,7 +150,10 @@ def pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
     rep_lists: dict[str, list[torch.Tensor]] = {}
     with torch.no_grad():
         for x, _ in loader:
-            _, reps = model(x, representations=True)
+            if ablate is not None:
+                _, reps = model(x, representations=True, ablate=ablate)
+            else:
+                _, reps = model(x, representations=True)
             for key, tensor in reps.items():
                 rep_lists.setdefault(key, []).append(tensor)
 
@@ -160,8 +171,10 @@ def pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
 
 # plot_pca(ModelI(), 2500, .001, 32, 3, [16,17,18], 'r1')
 def plot_pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
-             positions: list[int], rep: str = "r1") -> None:
-    result = pca(model, step, lr, batch_size, seed, positions=positions)
+             positions: list[int], rep: str = "r1",
+             ablate: dict[str, bool] | None = None,
+             target: bool = True) -> None:
+    result = pca(model, step, lr, batch_size, seed, positions=positions, ablate=ablate)
     fitted, matrix = result[rep]
 
     projected = fitted.transform(matrix)[:, :2]
@@ -172,9 +185,12 @@ def plot_pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
     all_tokens = torch.stack([datasets["probe"][i][0] for i in range(len(datasets["probe"]))])
     target_tokens = all_tokens[:, [p + 1 for p in positions]].numpy().reshape(N * n_pos)
     target_chars = np.array([decode[t] for t in target_tokens])
+    input_tokens = all_tokens[:, [p - SEQ_LEN for p in positions]].numpy().reshape(N * n_pos)
+    input_chars = np.array([decode[t] for t in input_tokens])
 
     df = pd.DataFrame(projected, columns=["PC1", "PC2"])  # type: ignore
     df["target"] = target_chars
+    df["input"] = input_chars
     df["Position"] = pos_array
 
     var = fitted.explained_variance_ratio_
@@ -186,16 +202,17 @@ def plot_pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
     renderer = getattr(fig.canvas, "renderer", None)
     bb = title.get_window_extent(renderer=renderer)
     bb_fig = bb.transformed(fig.transFigure.inverted())
-    fig.add_artist(mlines.Line2D(                                         
+    fig.add_artist(mlines.Line2D(
         [bb_fig.x0, bb_fig.x1], [bb_fig.y0, bb_fig.y0],
-        transform=fig.transFigure,                                        
-        color=palette[model_key], linewidth=2                             
+        transform=fig.transFigure,
+        color=palette[model_key], linewidth=2
     ))
 
-    # top: colored by target
-    sns.scatterplot(data=df, x="PC1", y="PC2", hue="target",
+    # top: colored by target or input token
+    hue_col = "target" if target else "input"
+    sns.scatterplot(data=df, x="PC1", y="PC2", hue=hue_col,
                     palette="turbo", alpha=0.5, s=10, ax=ax1, legend=False)
-    for char, group in df.groupby("target"):
+    for char, group in df.groupby(hue_col):
         cx, cy = float(group["PC1"].mean()), float(group["PC2"].mean())
         ax1.text(cx, cy, str(char), fontsize=11, fontweight="bold", ha="center", va="center",
                  bbox=dict(facecolor="white", edgecolor="none", pad=1.5,
@@ -217,13 +234,63 @@ def plot_pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
     plt.show()
 
 
+def plot_pca_3d(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
+                positions: list[int], rep: str = "r1",
+                ablate: dict[str, bool] | None = None,
+                target: bool = True) -> None:
+    result = pca(model, step, lr, batch_size, seed, positions=positions, ablate=ablate)
+    fitted, matrix = result[rep]
+
+    projected = fitted.transform(matrix)[:, :3]
+    n_pos = len(positions)
+    N = len(matrix) // n_pos
+    pos_array = np.tile(positions, N)
+
+    all_tokens = torch.stack([datasets["probe"][i][0] for i in range(len(datasets["probe"]))])
+    target_tokens = all_tokens[:, [p + 1 for p in positions]].numpy().reshape(N * n_pos)
+    target_chars = np.array([decode[t] for t in target_tokens])
+    input_tokens = all_tokens[:, [p - SEQ_LEN for p in positions]].numpy().reshape(N * n_pos)
+    input_chars = np.array([decode[t] for t in input_tokens])
+
+    var = fitted.explained_variance_ratio_
+    model_key = model.__class__.__name__[-1].upper()
+    hue_col = "target" if target else "input"
+
+    df = pd.DataFrame(projected, columns=["PC1", "PC2", "PC3"])  # type: ignore
+    df["target"] = target_chars
+    df["input"] = input_chars
+    df["Position"] = pos_array.astype(str)
+
+    axis_labels = {
+        "PC1": f"PC1 ({var[0]:.1%})",
+        "PC2": f"PC2 ({var[1]:.1%})",
+        "PC3": f"PC3 ({var[2]:.1%})",
+    }
+
+    fig = make_subplots(rows=1, cols=2, specs=[[{"type": "scatter3d"}, {"type": "scatter3d"}]],
+                        subplot_titles=[hue_col.capitalize(), "Position"])
+
+    for trace in px.scatter_3d(df, x="PC1", y="PC2", z="PC3", color=hue_col, opacity=0.5).data:
+        fig.add_trace(trace, row=1, col=1)
+
+    for trace in px.scatter_3d(df, x="PC1", y="PC2", z="PC3", color="Position", opacity=0.5).data:
+        fig.add_trace(trace, row=1, col=2)
+
+    fig.update_layout(title=f"Model {model_key} — {rep}",
+                      scene=dict(xaxis_title=axis_labels["PC1"], yaxis_title=axis_labels["PC2"], zaxis_title=axis_labels["PC3"]),
+                      scene2=dict(xaxis_title=axis_labels["PC1"], yaxis_title=axis_labels["PC2"], zaxis_title=axis_labels["PC3"]))
+    fig.show()
+
+
 def plot_pca_all(models_list: list[nn.Module], step: int, lr: float, batch_size: int, seed: int,
-                 positions: list[int], rep: str = "r1") -> None:
+                 positions: list[int], rep: str = "r1", 
+                 ablate: dict[str, bool] | None = None,
+                 target: bool = True) -> None:
     n = len(models_list)
     fig, axes = plt.subplots(2, n, figsize=(4 * n, 7), squeeze=True)
 
     for col, model in enumerate(models_list):
-        result = pca(model, step, lr, batch_size, seed, positions=positions)
+        result = pca(model, step, lr, batch_size, seed, positions=positions, ablate=ablate)
         fitted, matrix = result[rep]
 
         projected = fitted.transform(matrix)[:, :2]
@@ -234,9 +301,14 @@ def plot_pca_all(models_list: list[nn.Module], step: int, lr: float, batch_size:
         all_tokens = torch.stack([datasets["probe"][i][0] for i in range(len(datasets["probe"]))])
         target_tokens = all_tokens[:, [p + 1 for p in positions]].numpy().reshape(N * n_pos)
         target_chars = np.array([decode[t] for t in target_tokens])
+        
+        # In case you want to probe input token
+        input_tokens = all_tokens[:, [p - SEQ_LEN for p in positions]].numpy().reshape(N * n_pos)
+        input_chars = np.array([decode[t] for t in input_tokens])
 
         df = pd.DataFrame(projected, columns=["PC1", "PC2"])  # type: ignore
         df["target"] = target_chars
+        df["input"] = input_chars
         df["Position"] = pos_array
 
         var = fitted.explained_variance_ratio_
@@ -245,10 +317,11 @@ def plot_pca_all(models_list: list[nn.Module], step: int, lr: float, batch_size:
         ax1, ax2 = axes[0, col], axes[1, col]
         ax1.set_title(f"Model {model_key}", fontsize=18, color=palette[model_key], fontweight="bold", pad=12)
 
-        # top: colored by target
-        sns.scatterplot(data=df, x="PC1", y="PC2", hue="target",
+        # top: colored by target or input token
+        hue_col = "target" if target else "input"
+        sns.scatterplot(data=df, x="PC1", y="PC2", hue=hue_col,
                         palette="turbo", alpha=0.5, s=10, ax=ax1, legend=False)
-        for char, group in df.groupby("target"):
+        for char, group in df.groupby(hue_col):
             cx, cy = float(group["PC1"].mean()), float(group["PC2"].mean())
             ax1.text(cx, cy, str(char), fontsize=11, fontweight="bold", ha="center", va="center",
                      bbox=dict(facecolor="white", edgecolor="none", pad=1.5,
@@ -282,7 +355,151 @@ def plot_pca_all(models_list: list[nn.Module], step: int, lr: float, batch_size:
     plt.show()
 
 
+# --- Ablations ---
+
+def plot_ablations(step: int, lr: float, batch_size: int) -> None:
+    model_configs: list[tuple[str, nn.Module, list[tuple[str, dict[str, bool]]]]] = [
+        ("D", ModelD(), [
+            ("_",   {'h1': False, 'rev_out': False}),
+            ("A",   {'h1': True,  'rev_out': False}),
+            ("R",   {'h1': False, 'rev_out': True}),
+            ("A+R", {'h1': True,  'rev_out': True}),
+        ]),
+        ("U", ModelU(), [
+            ("_",   {'h1': False, 'rev_out': False}),
+            ("A",   {'h1': True,  'rev_out': False}),
+            ("R",   {'h1': False, 'rev_out': True}),
+            ("A+R", {'h1': True,  'rev_out': True}),
+        ]),
+        ("T", ModelT(), [
+            ("_",   {'h1': False, 'rev_out': False}),
+            ("A",   {'h1': True,  'rev_out': False}),
+            ("R",   {'h1': False, 'rev_out': True}),
+            ("A+R", {'h1': True,  'rev_out': True}),
+        ]),
+        ("I", ModelI(), [
+            ("_",   {'h1': False}),
+            ("A",   {'h1': True}),
+        ]),
+    ]
+    all_conditions = ["_", "A", "R", "A+R"]
+
+    val_loader = DataLoader(datasets["val"], batch_size=256)
+    rows: list[dict] = []
+
+    for model_label, model, conditions in model_configs:
+        model_name = f"model{model_label.lower()}"
+        for seed in _seeds:
+            ckpt_path = _data_dir / "checkpoints" / model_name / f"checkpoint_step{step}_seed{seed}_lr{lr}_bs{batch_size}.pt"
+            ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+            model.load_state_dict(ckpt["state_dict"])
+
+            for label, ablate in conditions:
+                model.eval()
+                correct = total = 0
+                with torch.no_grad():
+                    for x, y in val_loader:
+                        logits = model(x, ablate=ablate)
+                        preds = logits[:, 15:, :].argmax(dim=-1)
+                        targets = y[:, 15:]
+                        correct += (preds == targets).sum().item()
+                        total += targets.numel()
+                rows.append({"condition": label, "model": model_label, "accuracy": correct / total})
+
+    df = pd.DataFrame(rows)
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    sns.barplot(data=df, x="condition", y="accuracy", hue="model",
+                order=all_conditions, hue_order=hue_order,
+                palette=palette, errorbar="sd", capsize=0.1, ax=ax, width=0.6,
+                err_kws={"color": "black", "linewidth": 1.5})
+    ax.axhline(1 / 26, color="black", linestyle="--", linewidth=1, label="Chance")
+    ax.set_xlabel("Ablation")
+    ax.set_ylabel("Accuracy")
+    ax.set_ylim(0, 1)
+    ax.legend(title="Model")
+    fig.suptitle("Ablations on Attention (A) and Reverse (R)", fontsize=18)
+    fig.tight_layout()
+    fname = f"ablations_step{step}_lr{lr}_bs{batch_size}.pdf"
+    fig.savefig(_data_dir.parent / "plots" / fname)
+    plt.show()
+
+
 # --- Probes ---
+
+def train_probes(model: nn.Module, lr: float, batch_size: int, steps: list[int] = [0, 250, 2500], rep: str = "rev_in") -> None:
+    """Train and save a linear probe for each (step, seed) checkpoint.
+    Saves each fitted probe as a .joblib file and writes a CSV of probe/task accuracies."""
+    model_name = model.__class__.__name__.lower()
+    probes_dir = _data_dir / "probes"
+    rows = []
+
+    for step in steps:
+        for seed in _seeds:
+            ckpt_path = _data_dir / "checkpoints" / model_name / f"checkpoint_step{step}_seed{seed}_lr{lr}_bs{batch_size}.pt"
+            ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+            model.load_state_dict(ckpt["state_dict"])
+            model.eval()
+
+            # Extract representations
+            probe_loader = DataLoader(datasets["probe"], batch_size=1024)
+            rep_list, toks_list = [], []
+            with torch.no_grad():
+                for x, _ in probe_loader:
+                    _, reps = model(x, representations=True)
+                    rep_list.append(reps[rep][:, SEQ_LEN:, :])
+                    toks_list.append(x[:, :SEQ_LEN])
+
+            rep_tensor = torch.cat(rep_list, dim=0)  # [N, SEQ_LEN, d]
+            tokens = torch.cat(toks_list, dim=0)     # [N, SEQ_LEN]
+            N = rep_tensor.shape[0]
+            X = rep_tensor.reshape(N * SEQ_LEN, -1).numpy()
+            y_probe = tokens.reshape(N * SEQ_LEN).numpy()
+
+            X_train, X_test, y_train, y_test = train_test_split(X, y_probe, test_size=0.2, random_state=42)
+            clf = LogisticRegression(max_iter=1000)
+            clf.fit(X_train, y_train)
+            probe_acc = float(clf.score(X_test, y_test))
+
+            joblib.dump(clf, probes_dir / f"probe_{model_name}_{rep}_step{step}_seed{seed}_lr{lr}_bs{batch_size}.joblib")
+
+            # Task accuracy
+            val_loader = DataLoader(datasets["val"], batch_size=1024)
+            correct = total = 0
+            with torch.no_grad():
+                for x, y_task in val_loader:
+                    logits = model(x)
+                    preds = logits[:, SEQ_LEN:, :].argmax(dim=-1)
+                    targets = y_task[:, SEQ_LEN:]
+                    correct += int((preds == targets).sum().item())
+                    total += targets.numel()
+            task_acc = correct / total
+
+            rows.append({"step": step, "seed": seed, "probe_accuracy": probe_acc, "task_accuracy": task_acc})
+
+    pd.DataFrame(rows).to_csv(probes_dir / f"probe_{model_name}_{rep}_lr{lr}_bs{batch_size}.csv", index=False)
+
+
+def plot_probe(model: nn.Module, lr: float, batch_size: int, rep: str = "rev_in") -> None:
+    """Plot task accuracy and probe accuracy from saved probe results CSV."""
+    model_name = model.__class__.__name__.lower()
+    csv_path = _data_dir / "probes" / f"probe_{model_name}_{rep}_lr{lr}_bs{batch_size}.csv"
+    results = pd.read_csv(csv_path)
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    sns.lineplot(data=results, x="step", y="task_accuracy", ax=ax, color=bmidnight,
+                 errorbar="sd", label="Task Accuracy", marker="o")
+    sns.lineplot(data=results, x="step", y="probe_accuracy", ax=ax, color=bcayenne,
+                 errorbar="sd", label="Probe Accuracy", marker="o")
+    ax.set_xlabel("Step")
+    ax.set_ylabel("Accuracy")
+    ax.set_ylim(0, 1)
+    ax.legend()
+    fig.suptitle(f"Model {model_name.removeprefix('model').upper()}: Task Accuracy vs. Probe Accuracy on {rep}", fontsize=14)
+    fig.tight_layout()
+    fig.savefig(_data_dir.parent / "plots" / f"probe_{model_name}_{rep}_lr{lr}_bs{batch_size}.pdf")
+    plt.show()
+
 
 # --- Helpers ---
 
