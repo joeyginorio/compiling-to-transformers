@@ -349,6 +349,7 @@ def plot_pca_all(models_list: list[nn.Module], step: int, lr: float, batch_size:
         ax2.set_ylabel(f"PC2 ({var[1]:.1%})")
 
     fname = f"pca_all_step{step}_lr{lr}_bs{batch_size}_seed{seed}_{rep}.pdf"
+    fig.suptitle(f"PCA at {rep.upper()}", fontsize=18)
     fig.tight_layout()
     fig.subplots_adjust(wspace=0.35)
     fig.savefig(_data_dir.parent / "plots" / fname)
@@ -486,18 +487,68 @@ def plot_probe(model: nn.Module, lr: float, batch_size: int, rep: str = "rev_in"
     csv_path = _data_dir / "probes" / f"probe_{model_name}_{rep}_lr{lr}_bs{batch_size}.csv"
     results = pd.read_csv(csv_path)
 
+    model_key = model.__class__.__name__[-1].upper()
+
     fig, ax = plt.subplots(figsize=(7, 4))
-    sns.lineplot(data=results, x="step", y="task_accuracy", ax=ax, color=bmidnight,
-                 errorbar="sd", label="Task Accuracy", marker="o")
-    sns.lineplot(data=results, x="step", y="probe_accuracy", ax=ax, color=bcayenne,
-                 errorbar="sd", label="Probe Accuracy", marker="o")
+    title = fig.suptitle(f"Model {model_key}", fontsize=18)
+    fig.canvas.draw()
+    renderer = getattr(fig.canvas, "renderer", None)
+    bb = title.get_window_extent(renderer=renderer)
+    bb_fig = bb.transformed(fig.transFigure.inverted())
+    fig.add_artist(mlines.Line2D(
+        [bb_fig.x0, bb_fig.x1], [bb_fig.y0, bb_fig.y0],
+        transform=fig.transFigure,
+        color=palette[model_key], linewidth=2
+    ))
+
+    sns.lineplot(data=results, x="step", y="task_accuracy", ax=ax, color=palette[model_key],
+                 errorbar="sd", label="Task Accuracy", marker="s", linestyle=":")
+    sns.lineplot(data=results, x="step", y="probe_accuracy", ax=ax, color=palette[model_key],
+                 errorbar="sd", label="Probe Accuracy", marker="o", linestyle="-")
+    ax.axhline(1 / 26, color="black", linestyle="--", linewidth=1, label="Chance")
     ax.set_xlabel("Step")
     ax.set_ylabel("Accuracy")
     ax.set_ylim(0, 1)
     ax.legend()
-    fig.suptitle(f"Model {model_name.removeprefix('model').upper()}: Task Accuracy vs. Probe Accuracy on {rep}", fontsize=14)
     fig.tight_layout()
     fig.savefig(_data_dir.parent / "plots" / f"probe_{model_name}_{rep}_lr{lr}_bs{batch_size}.pdf")
+    plt.show()
+
+
+def plot_probe_all(models_list: list[nn.Module], lr: float, batch_size: int, rep: str = "rev_in") -> None:
+    n = len(models_list)
+    fig, axes = plt.subplots(1, n, figsize=(5 * n, 4), sharey=True)
+
+    for col, model in enumerate(models_list):
+        model_name = model.__class__.__name__.lower()
+        model_key = model.__class__.__name__[-1].upper()
+        csv_path = _data_dir / "probes" / f"probe_{model_name}_{rep}_lr{lr}_bs{batch_size}.csv"
+        results = pd.read_csv(csv_path)
+
+        ax = axes[col]
+        ax.set_title(f"Model {model_key}", fontsize=18, color=palette[model_key], fontweight="bold", pad=12)
+
+        sns.lineplot(data=results, x="step", y="task_accuracy", ax=ax, color=palette[model_key],
+                     errorbar="sd", label="Task Accuracy", marker="s", linestyle=":")
+        sns.lineplot(data=results, x="step", y="probe_accuracy", ax=ax, color=palette[model_key],
+                     errorbar="sd", label="Probe Accuracy", marker="o", linestyle="-")
+        ax.axhline(1 / 26, color="black", linestyle="--", linewidth=1, label="Chance")
+        ax.set_xlabel("Step")
+        ax.set_ylabel("Accuracy" if col == 0 else "")
+        ax.set_ylim(0, 1)
+        if col == 0:
+            legend_handles = [
+                mlines.Line2D([], [], color="black", marker="s", linestyle=":", label="Task Accuracy"),
+                mlines.Line2D([], [], color="black", marker="o", linestyle="-", label="Probe Accuracy"),
+                mlines.Line2D([], [], color="black", linestyle="--", linewidth=1, label="Chance"),
+            ]
+            ax.legend(handles=legend_handles)
+        else:
+            ax.legend_.remove() if ax.legend_ else None
+
+    fig.suptitle("Do correct embeddings of token identity drive behavior?", fontsize=18)
+    fig.tight_layout()
+    fig.savefig(_data_dir.parent / "plots" / f"probe_all_{rep}_lr{lr}_bs{batch_size}.pdf")
     plt.show()
 
 
