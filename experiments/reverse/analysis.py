@@ -572,7 +572,7 @@ def plot_steering(step: int, lr: float, batch_size: int, n_targets: int = 50, k:
     rng = _random.Random(42)
     inputs = [''.join(rng.choices(letters, k=SEQ_LEN)) for _ in range(n_targets)]
 
-    x_test = torch.stack([datasets["test"][i][0] for i in range(len(datasets["test"]))])
+    x_test = torch.stack([datasets["val"][i][0] for i in range(len(datasets["val"]))])
 
     rows: list[dict] = []
 
@@ -636,7 +636,7 @@ def plot_steering_all(step: int, lr: float, batch_size: int, n_targets: int = 50
     rng = _random.Random(42)
     inputs = [''.join(rng.choices(letters, k=SEQ_LEN)) for _ in range(n_targets)]
 
-    x_test = torch.stack([datasets["test"][i][0] for i in range(len(datasets["test"]))])
+    x_test = torch.stack([datasets["val"][i][0] for i in range(len(datasets["val"]))])
 
     rows: list[dict] = []
 
