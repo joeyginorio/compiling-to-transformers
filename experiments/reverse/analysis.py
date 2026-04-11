@@ -683,7 +683,7 @@ def plot_steering_all(step: int, lr: float, batch_size: int, n_targets: int = 50
                      hue_order=["D", "U", "T"],
                      errorbar="sd", marker="o", ax=ax)
         ax.set_title(f"K={k}", fontsize=14)
-        ax.set_xlabel("α")
+        ax.set_xlabel("Alpha")
         ax.set_ylabel("Mean Steerability (Top-K)" if col == 0 else "")
         if col == 0:
             ax.legend(title="Model")
