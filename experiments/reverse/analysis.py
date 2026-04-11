@@ -1,9 +1,9 @@
 import ast
 import joblib
 import torch
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+import plotly.express as px  # type: ignore[import-untyped]
+import plotly.graph_objects as go  # type: ignore[import-untyped]
+from plotly.subplots import make_subplots  # type: ignore[import-untyped]
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -17,7 +17,7 @@ from sklearn.linear_model import LogisticRegression  # type: ignore
 from sklearn.model_selection import train_test_split  # type: ignore
 from torch.utils.data import DataLoader
 from experiments.reverse.models import ModelD, ModelT, ModelI, ModelU
-from experiments.reverse.dataset import datasets, decode, SEQ_LEN
+from experiments.reverse.dataset import datasets, decode, encode, SEQ_LEN
 from experiments.reverse.learning import evaluate, _seeds
 
 # -- Globals ---
@@ -536,6 +536,7 @@ def plot_probe_all(models_list: list[nn.Module], lr: float, batch_size: int, rep
         ax.set_xlabel("Step")
         ax.set_ylabel("Accuracy" if col == 0 else "")
         ax.set_ylim(0, 1)
+        ax.set_xlim(0, 600)
         if col == 0:
             legend_handles = [
                 mlines.Line2D([], [], color="black", marker="s", linestyle=":", label="Task Accuracy"),
@@ -549,6 +550,149 @@ def plot_probe_all(models_list: list[nn.Module], lr: float, batch_size: int, rep
     fig.suptitle("Do correct embeddings of token identity drive behavior?", fontsize=18)
     fig.tight_layout()
     fig.savefig(_data_dir.parent / "plots" / f"probe_all_{rep}_lr{lr}_bs{batch_size}.pdf")
+    plt.show()
+
+
+# --- Steering ---
+
+def plot_steering(step: int, lr: float, batch_size: int, n_targets: int = 50, k: int = 1) -> None:
+    """Plot steerability vs alpha for Models D, U, T.
+
+    For each alpha, steers all rev_in positions simultaneously toward a random
+    input string s and measures the fraction of output positions where the target
+    token (s[::-1][i]) appears in the top-k logits. k=1 is exact argmax accuracy.
+    Averaged over n_targets random strings and all seeds.
+    """
+    import random as _random
+
+    model_configs = [("D", ModelD()), ("U", ModelU()), ("T", ModelT())]
+    alphas = [0.0, 0.2, 0.4, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
+    letters = [decode[i] for i in range(26)]
+
+    rng = _random.Random(42)
+    inputs = [''.join(rng.choices(letters, k=SEQ_LEN)) for _ in range(n_targets)]
+
+    x_test = torch.stack([datasets["test"][i][0] for i in range(len(datasets["test"]))])
+
+    rows: list[dict] = []
+
+    for model_label, model in model_configs:
+        model_name = f"model{model_label.lower()}"
+
+        for seed in _seeds:
+            ckpt_path = _data_dir / "checkpoints" / model_name / f"checkpoint_step{step}_seed{seed}_lr{lr}_bs{batch_size}.pt"
+            ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+            model.load_state_dict(ckpt["state_dict"])
+            model.eval()
+
+            probe_path = _data_dir / "probes" / f"probe_{model_name}_rev_in_step{step}_seed{seed}_lr{lr}_bs{batch_size}.joblib"
+            clf = joblib.load(probe_path)
+            W = torch.tensor(clf.coef_, dtype=torch.float32)  # [n_classes, d_head]
+            class_to_idx = {int(c): i for i, c in enumerate(clf.classes_)}
+
+            with torch.no_grad():
+                for alpha in alphas:
+                    correct = total = 0
+                    for s in inputs:
+                        steer = {p: alpha * W[class_to_idx[encode[s[p]]]]
+                                 for p in range(SEQ_LEN)}
+                        logits = model(x_test, steer=steer)
+                        topk = logits[:, SEQ_LEN:2 * SEQ_LEN, :].topk(k, dim=-1).indices  # [B, SEQ_LEN, k]
+                        target_tokens = torch.tensor([encode[c] for c in s[::-1]])          # [SEQ_LEN]
+                        correct += (topk == target_tokens.unsqueeze(0).unsqueeze(-1)).any(dim=-1).sum().item()
+                        total += topk.shape[0] * topk.shape[1]
+                    rows.append({"model": model_label, "alpha": alpha, "seed": seed,
+                                 "steerability": correct / total})
+
+    df = pd.DataFrame(rows)
+    fig, ax = plt.subplots(figsize=(7, 4))
+    sns.lineplot(data=df, x="alpha", y="steerability", hue="model",
+                 palette={m: palette[m] for m in ["D", "U", "T"]},
+                 hue_order=["D", "U", "T"],
+                 errorbar="sd", marker="o", ax=ax)
+
+    ax.set_xlabel("α")
+    ax.set_ylabel("Mean Steerability (Top-K)")
+    ax.legend(title="Model")
+    fig.suptitle("Steerability: steering rev_in to reverse random inputs", fontsize=18)
+    fig.tight_layout()
+    fig.savefig(_data_dir.parent / "plots" / f"steering_step{step}_lr{lr}_bs{batch_size}_k{k}.pdf")
+    plt.show()
+
+
+def plot_steering_all(step: int, lr: float, batch_size: int, n_targets: int = 50) -> None:
+    """Side-by-side steerability plots for k=1, 2, 3.
+
+    Runs forward passes once per (model, seed, alpha, input string) and computes
+    top-k accuracy for all three k values simultaneously.
+    """
+    import random as _random
+
+    model_configs = [("D", ModelD()), ("U", ModelU()), ("T", ModelT())]
+    alphas = [0.0, 0.2, 0.4, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
+    ks = [1, 2, 3]
+    letters = [decode[i] for i in range(26)]
+
+    rng = _random.Random(42)
+    inputs = [''.join(rng.choices(letters, k=SEQ_LEN)) for _ in range(n_targets)]
+
+    x_test = torch.stack([datasets["test"][i][0] for i in range(len(datasets["test"]))])
+
+    rows: list[dict] = []
+
+    for model_label, model in model_configs:
+        model_name = f"model{model_label.lower()}"
+
+        for seed in _seeds:
+            ckpt_path = _data_dir / "checkpoints" / model_name / f"checkpoint_step{step}_seed{seed}_lr{lr}_bs{batch_size}.pt"
+            ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+            model.load_state_dict(ckpt["state_dict"])
+            model.eval()
+
+            probe_path = _data_dir / "probes" / f"probe_{model_name}_rev_in_step{step}_seed{seed}_lr{lr}_bs{batch_size}.joblib"
+            clf = joblib.load(probe_path)
+            W = torch.tensor(clf.coef_, dtype=torch.float32)
+            class_to_idx = {int(c): i for i, c in enumerate(clf.classes_)}
+
+            with torch.no_grad():
+                for alpha in alphas:
+                    counts = {k: 0 for k in ks}
+                    total = 0
+                    for s in inputs:
+                        steer = {p: alpha * W[class_to_idx[encode[s[p]]]]
+                                 for p in range(SEQ_LEN)}
+                        logits = model(x_test, steer=steer)
+                        top3 = logits[:, SEQ_LEN:2 * SEQ_LEN, :].topk(3, dim=-1).indices  # [B, SEQ_LEN, 3]
+                        target_tokens = torch.tensor([encode[c] for c in s[::-1]])          # [SEQ_LEN]
+                        target_exp = target_tokens.unsqueeze(0).unsqueeze(-1)               # [1, SEQ_LEN, 1]
+                        matches = (top3 == target_exp)                                      # [B, SEQ_LEN, 3]
+                        for k in ks:
+                            counts[k] += matches[:, :, :k].any(dim=-1).sum().item()
+                        total += top3.shape[0] * top3.shape[1]
+                    for k in ks:
+                        rows.append({"model": model_label, "alpha": alpha, "seed": seed,
+                                     "k": k, "steerability": counts[k] / total})
+
+    df = pd.DataFrame(rows)
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4), sharey=True)
+
+    for col, k in enumerate(ks):
+        ax = axes[col]
+        sns.lineplot(data=df[df["k"] == k].copy(), x="alpha", y="steerability", hue="model",  # type: ignore[arg-type]
+                     palette={m: palette[m] for m in ["D", "U", "T"]},
+                     hue_order=["D", "U", "T"],
+                     errorbar="sd", marker="o", ax=ax)
+        ax.set_title(f"K={k}", fontsize=14)
+        ax.set_xlabel("α")
+        ax.set_ylabel("Mean Steerability (Top-K)" if col == 0 else "")
+        if col == 0:
+            ax.legend(title="Model")
+        else:
+            ax.legend_.remove()
+
+    fig.suptitle("Can these embeddings be steered to change behavior?", fontsize=18)
+    fig.tight_layout()
+    fig.savefig(_data_dir.parent / "plots" / f"steering_all_step{step}_lr{lr}_bs{batch_size}.pdf")
     plt.show()
 
 

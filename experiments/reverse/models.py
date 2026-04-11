@@ -35,17 +35,20 @@ class ModelD(nn.Module):
         self.rev_proj_in = nn.Linear(d_model, d_head, bias=False)
         self.merge = nn.Linear(d_model + d_head, d_model, bias=False)
 
-    def forward(self, x: torch.Tensor, 
-                representations: bool = False, 
-                ablate: dict[str, bool] = {'h1': False, 'rev_out': False}) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    def forward(self, x: torch.Tensor,
+                representations: bool = False,
+                ablate: dict[str, bool] = {'h1': False, 'rev_out': False},
+                steer: dict[int, torch.Tensor] | None = None) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
         x1 = self.tok_emb(x) + self.pos_emb(self.positions)
 
         h1, _ = self.attn(x1, x1, x1, attn_mask=self.mask, is_causal=True, need_weights=False)
         if ablate['h1']:
             h1 = torch.roll(h1, shifts=1, dims=0)
 
-
         rev_in = self.rev_proj_in(x1[:, :SEQ_LEN, :]) # NOTE: Only pass in the first 15 chars!
+        if steer is not None:
+            for pos, vec in steer.items():
+                rev_in[:, pos, :] = rev_in[:, pos, :] + vec
         rev_out = torch.vmap(self.rev)({'x': rev_in.flatten(start_dim=1)}).reshape(rev_in.shape)
         if ablate['rev_out']:
             rev_out = torch.roll(rev_out, shifts=1, dims=0)
@@ -84,7 +87,8 @@ class ModelU(nn.Module):
 
     def forward(self, x: torch.Tensor,
                 representations: bool = False,
-                ablate: dict[str, bool] = {'h1': False, 'rev_out': False}) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
+                ablate: dict[str, bool] = {'h1': False, 'rev_out': False},
+                steer: dict[int, torch.Tensor] | None = None) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
         x1 = self.tok_emb(x) + self.pos_emb(self.positions)
 
         h1, _ = self.attn(x1, x1, x1, attn_mask=self.mask, is_causal=True, need_weights=False)
@@ -92,6 +96,9 @@ class ModelU(nn.Module):
             h1 = torch.roll(h1, shifts=1, dims=0)
 
         rev_in = self.rev_proj_in(x1[:, :SEQ_LEN, :])
+        if steer is not None:
+            for pos, vec in steer.items():
+                rev_in[:, pos, :] = rev_in[:, pos, :] + vec
         rev_out = torch.vmap(self.rev)({'x': rev_in.flatten(start_dim=1)}).reshape(rev_in.shape)
         if ablate['rev_out']:
             rev_out = torch.roll(rev_out, shifts=1, dims=0)
@@ -130,7 +137,8 @@ class ModelT(nn.Module):
 
     def forward(self, x: torch.Tensor,
                 representations: bool = False,
-                ablate: dict[str, bool] = {'h1': False, 'rev_out': False}) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
+                ablate: dict[str, bool] = {'h1': False, 'rev_out': False},
+                steer: dict[int, torch.Tensor] | None = None) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
         x1 = self.tok_emb(x) + self.pos_emb(self.positions)
 
         h1, _ = self.attn(x1, x1, x1, attn_mask=self.mask, is_causal=True, need_weights=False)
@@ -138,6 +146,9 @@ class ModelT(nn.Module):
             h1 = torch.roll(h1, shifts=1, dims=0)
 
         rev_in = self.rev_proj_in(x1[:, :SEQ_LEN, :])
+        if steer is not None:
+            for pos, vec in steer.items():
+                rev_in[:, pos, :] = rev_in[:, pos, :] + vec
         rev_out = torch.vmap(self.rev)({'x': rev_in.flatten(start_dim=1)}).reshape(rev_in.shape)
         if ablate['rev_out']:
             rev_out = torch.roll(rev_out, shifts=1, dims=0)
