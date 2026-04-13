@@ -2,7 +2,6 @@ import ast
 import joblib
 import torch
 import plotly.express as px  # type: ignore[import-untyped]
-import plotly.graph_objects as go  # type: ignore[import-untyped]
 from plotly.subplots import make_subplots  # type: ignore[import-untyped]
 import numpy as np
 import pandas as pd
@@ -18,7 +17,7 @@ from sklearn.model_selection import train_test_split  # type: ignore
 from torch.utils.data import DataLoader
 from experiments.reverse.models import ModelD, ModelT, ModelI, ModelU
 from experiments.reverse.dataset import datasets, decode, encode, SEQ_LEN
-from experiments.reverse.learning import evaluate, _seeds
+from experiments.reverse.learning import evaluate, _seeds, DEVICE
 
 # -- Globals ---
 
@@ -55,9 +54,49 @@ models = ["modeld", "modelu", "modelt", "modeli"]
 
 
 # --- Behavioral Dynamics ---
-def plot_behavioral_dynamics(lr: float | None = None, batch_size: int | None = None, max_step: int = 800):
+_model_cls = {"modeld": ModelD, "modelu": ModelU, "modelt": ModelT, "modeli": ModelI}
+
+
+def add_test_loss(lr: float, batch_size: int, max_step: int = 800) -> None:
+    """Compute test loss from checkpoints and write it into each model's CSV.
+
+    Evaluates every (seed, step) checkpoint at multiples of 50 up to max_step
+    for the given lr and batch_size, then writes a test_loss column back to the CSV.
+    """
+    test_loader = DataLoader(datasets["test"], batch_size=256)
+    test_steps = range(0, max_step + 1, 50)
+
+    for model_name in models:
+        csv_path = _data_dir / f"{model_name}.csv"
+        df = pd.read_csv(csv_path)
+        loss_map: dict[tuple[int, int], float] = {}
+        for seed in _seeds:
+            for step in test_steps:
+                ckpt_path = _data_dir / "checkpoints" / model_name / f"checkpoint_step{step}_seed{seed}_lr{lr}_bs{batch_size}.pt"
+                if not ckpt_path.exists():
+                    continue
+                m = _model_cls[model_name]()
+                ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+                m.load_state_dict(ckpt["state_dict"])
+                m.to(DEVICE)
+                loss_map[(step, seed)] = evaluate(m, test_loader)
+        df["test_loss"] = df.apply(
+            lambda row: loss_map.get((int(row["step"]), int(row["seed"])), float("nan")),
+            axis=1,
+        )
+        df.to_csv(csv_path, index=False)
+
+
+def plot_behavioral_dynamics(lr: float | None = None, batch_size: int | None = None, max_step: int = 800, test: bool = False):
     frames: list[pd.DataFrame] = []
     hm_frames: list[pd.DataFrame] = []
+    loss_col = "test_loss" if test else "val_loss"
+
+    if test and lr is not None and batch_size is not None:
+        sample = pd.read_csv(_data_dir / f"{models[0]}.csv")
+        mask = (sample["lr"] == lr) & (sample["batch_size"] == batch_size)
+        if "test_loss" not in sample.columns or sample.loc[mask, "test_loss"].isna().all():
+            add_test_loss(lr, batch_size, max_step)
 
     for model_name in models:
         df = pd.read_csv(_data_dir / f"{model_name}.csv")
@@ -69,7 +108,7 @@ def plot_behavioral_dynamics(lr: float | None = None, batch_size: int | None = N
         # Otherwise find best config
         else:
             last_n = df.groupby(["lr", "batch_size"]).apply(
-                lambda g: g.nlargest(100, "step")["val_loss"].mean()
+                lambda g: g.nlargest(100, "step")[loss_col].mean()
             )
             idx = last_n.idxmin()
             assert isinstance(idx, tuple)
@@ -78,7 +117,7 @@ def plot_behavioral_dynamics(lr: float | None = None, batch_size: int | None = N
         run_df = df[(df["lr"] == best_lr) & (df["batch_size"] == best_bs)].copy()
         model_label = model_name[-1].upper()
         run_df["model"] = model_label
-        frames.append(run_df[["step", "seed", "train_loss", "val_loss", "model"]])  # type: ignore
+        frames.append(run_df[["step", "seed", "train_loss", loss_col, "model"]])  # type: ignore
 
         # Build heatmap rows for this model using its best config
         run_df["output2"] = run_df["outputs"].apply(lambda s: ast.literal_eval(s)[1])  # type: ignore
@@ -95,6 +134,7 @@ def plot_behavioral_dynamics(lr: float | None = None, batch_size: int | None = N
 
     fig, (*ax_hms, ax_train, ax_val) = plt.subplots(6, 1, figsize=(8, 14))
     ax_val.sharex(ax_train)
+    ax_train.sharey(ax_val)
 
     # Model Heatmaps
     for ax_hm, model_label in zip(ax_hms, hue_order):
@@ -118,11 +158,12 @@ def plot_behavioral_dynamics(lr: float | None = None, batch_size: int | None = N
     ax_train.set_xlim(0, max_step)
     ax_train.tick_params(labelbottom=False)
 
-    # Val loss
-    sns.lineplot(data=data, x="step", y="val_loss", hue="model",
+    # Val/Test loss
+    sns.lineplot(data=data, x="step", y=loss_col, hue="model",
                  palette=palette, hue_order=hue_order, ax=ax_val, errorbar="sd")
     ax_val.set_xlabel("Step")
-    ax_val.set_ylabel("Val Loss")
+    ax_val.set_ylim(bottom=-0.05)
+    ax_val.set_ylabel("Test Loss" if test else "Val Loss")
     ax_val.legend(title="Model")
 
     fig.suptitle("Behavioral Dynamics", fontsize=18)
@@ -358,7 +399,7 @@ def plot_pca_all(models_list: list[nn.Module], step: int, lr: float, batch_size:
 
 # --- Ablations ---
 
-def plot_ablations(step: int, lr: float, batch_size: int) -> None:
+def plot_ablations(step: int, lr: float, batch_size: int, test: bool = False) -> None:
     model_configs: list[tuple[str, nn.Module, list[tuple[str, dict[str, bool]]]]] = [
         ("D", ModelD(), [
             ("_",   {'h1': False, 'rev_out': False}),
@@ -385,7 +426,7 @@ def plot_ablations(step: int, lr: float, batch_size: int) -> None:
     ]
     all_conditions = ["_", "A", "R", "A+R"]
 
-    val_loader = DataLoader(datasets["val"], batch_size=256)
+    val_loader = DataLoader(datasets["test" if test else "val"], batch_size=256)
     rows: list[dict] = []
 
     for model_label, model, conditions in model_configs:
@@ -481,13 +522,53 @@ def train_probes(model: nn.Module, lr: float, batch_size: int, steps: list[int] 
     pd.DataFrame(rows).to_csv(probes_dir / f"probe_{model_name}_{rep}_lr{lr}_bs{batch_size}.csv", index=False)
 
 
-def plot_probe(model: nn.Module, lr: float, batch_size: int, rep: str = "rev_in") -> None:
+def add_test_task_accuracy(lr: float, batch_size: int, rep: str = "rev_in") -> None:
+    """Compute test task accuracy from saved checkpoints and write it into the probe CSV for models D, T, U."""
+    test_loader = DataLoader(datasets["test"], batch_size=1024)
+
+    for model_name, model_cls in [("modeld", ModelD), ("modelt", ModelT), ("modelu", ModelU)]:
+        csv_path = _data_dir / "probes" / f"probe_{model_name}_{rep}_lr{lr}_bs{batch_size}.csv"
+        df = pd.read_csv(csv_path)
+        steps: list[int] = [int(s) for s in df["step"].unique()]
+        m = model_cls()
+        acc_map: dict[tuple[int, int], float] = {}
+
+        for step in steps:
+            for seed in _seeds:
+                ckpt_path = _data_dir / "checkpoints" / model_name / f"checkpoint_step{step}_seed{seed}_lr{lr}_bs{batch_size}.pt"
+                if not ckpt_path.exists():
+                    continue
+                ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+                m.load_state_dict(ckpt["state_dict"])
+                m.eval()
+                correct = total = 0
+                with torch.no_grad():
+                    for x, y_task in test_loader:
+                        logits = m(x)
+                        preds = logits[:, SEQ_LEN:, :].argmax(dim=-1)
+                        targets = y_task[:, SEQ_LEN:]
+                        correct += int((preds == targets).sum().item())
+                        total += targets.numel()
+                acc_map[(step, seed)] = correct / total
+
+        df["test_task_accuracy"] = df.apply(
+            lambda row: acc_map.get((int(row["step"]), int(row["seed"])), float("nan")),
+            axis=1,
+        )
+        df.to_csv(csv_path, index=False)
+
+
+def plot_probe(model: nn.Module, lr: float, batch_size: int, rep: str = "rev_in", test: bool = False) -> None:
     """Plot task accuracy and probe accuracy from saved probe results CSV."""
     model_name = model.__class__.__name__.lower()
     csv_path = _data_dir / "probes" / f"probe_{model_name}_{rep}_lr{lr}_bs{batch_size}.csv"
     results = pd.read_csv(csv_path)
+    if test and ("test_task_accuracy" not in results.columns or bool(results["test_task_accuracy"].isna().all())):
+        add_test_task_accuracy(lr, batch_size, rep=rep)
+        results = pd.read_csv(csv_path)
 
     model_key = model.__class__.__name__[-1].upper()
+    task_col = "test_task_accuracy" if test else "task_accuracy"
 
     fig, ax = plt.subplots(figsize=(7, 4))
     title = fig.suptitle(f"Model {model_key}", fontsize=18)
@@ -501,7 +582,7 @@ def plot_probe(model: nn.Module, lr: float, batch_size: int, rep: str = "rev_in"
         color=palette[model_key], linewidth=2
     ))
 
-    sns.lineplot(data=results, x="step", y="task_accuracy", ax=ax, color=palette[model_key],
+    sns.lineplot(data=results, x="step", y=task_col, ax=ax, color=palette[model_key],
                  errorbar="sd", label="Task Accuracy", marker="s", linestyle=":")
     sns.lineplot(data=results, x="step", y="probe_accuracy", ax=ax, color=palette[model_key],
                  errorbar="sd", label="Probe Accuracy", marker="o", linestyle="-")
@@ -515,9 +596,16 @@ def plot_probe(model: nn.Module, lr: float, batch_size: int, rep: str = "rev_in"
     plt.show()
 
 
-def plot_probe_all(models_list: list[nn.Module], lr: float, batch_size: int, rep: str = "rev_in") -> None:
+def plot_probe_all(models_list: list[nn.Module], lr: float, batch_size: int, rep: str = "rev_in", test: bool = False) -> None:
     n = len(models_list)
     fig, axes = plt.subplots(1, n, figsize=(5 * n, 4), sharey=True)
+    task_col = "test_task_accuracy" if test else "task_accuracy"
+
+    if test:
+        first_name = models_list[0].__class__.__name__.lower()
+        first_csv = pd.read_csv(_data_dir / "probes" / f"probe_{first_name}_{rep}_lr{lr}_bs{batch_size}.csv")
+        if "test_task_accuracy" not in first_csv.columns or bool(first_csv["test_task_accuracy"].isna().all()):
+            add_test_task_accuracy(lr, batch_size, rep=rep)
 
     for col, model in enumerate(models_list):
         model_name = model.__class__.__name__.lower()
@@ -528,7 +616,7 @@ def plot_probe_all(models_list: list[nn.Module], lr: float, batch_size: int, rep
         ax = axes[col]
         ax.set_title(f"Model {model_key}", fontsize=18, color=palette[model_key], fontweight="bold", pad=12)
 
-        sns.lineplot(data=results, x="step", y="task_accuracy", ax=ax, color=palette[model_key],
+        sns.lineplot(data=results, x="step", y=task_col, ax=ax, color=palette[model_key],
                      errorbar="sd", label="Task Accuracy", marker="s", linestyle=":")
         sns.lineplot(data=results, x="step", y="probe_accuracy", ax=ax, color=palette[model_key],
                      errorbar="sd", label="Probe Accuracy", marker="o", linestyle="-")
@@ -555,7 +643,7 @@ def plot_probe_all(models_list: list[nn.Module], lr: float, batch_size: int, rep
 
 # --- Steering ---
 
-def plot_steering(step: int, lr: float, batch_size: int, n_targets: int = 50, k: int = 1) -> None:
+def plot_steering(step: int, lr: float, batch_size: int, n_targets: int = 50, k: int = 1, test: bool = False) -> None:
     """Plot steerability vs alpha for Models D, U, T.
 
     For each alpha, steers all rev_in positions simultaneously toward a random
@@ -572,7 +660,8 @@ def plot_steering(step: int, lr: float, batch_size: int, n_targets: int = 50, k:
     rng = _random.Random(42)
     inputs = [''.join(rng.choices(letters, k=SEQ_LEN)) for _ in range(n_targets)]
 
-    x_test = torch.stack([datasets["val"][i][0] for i in range(len(datasets["val"]))])
+    split = "test" if test else "val"
+    x_test = torch.stack([datasets[split][i][0] for i in range(len(datasets[split]))])
 
     rows: list[dict] = []
 
@@ -620,7 +709,7 @@ def plot_steering(step: int, lr: float, batch_size: int, n_targets: int = 50, k:
     plt.show()
 
 
-def plot_steering_all(step: int, lr: float, batch_size: int, n_targets: int = 50) -> None:
+def plot_steering_all(step: int, lr: float, batch_size: int, n_targets: int = 50, test: bool = False) -> None:
     """Side-by-side steerability plots for k=1, 2, 3.
 
     Runs forward passes once per (model, seed, alpha, input string) and computes
@@ -636,7 +725,8 @@ def plot_steering_all(step: int, lr: float, batch_size: int, n_targets: int = 50
     rng = _random.Random(42)
     inputs = [''.join(rng.choices(letters, k=SEQ_LEN)) for _ in range(n_targets)]
 
-    x_test = torch.stack([datasets["val"][i][0] for i in range(len(datasets["val"]))])
+    split = "test" if test else "val"
+    x_test = torch.stack([datasets[split][i][0] for i in range(len(datasets[split]))])
 
     rows: list[dict] = []
 
