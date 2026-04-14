@@ -437,22 +437,22 @@ def plot_ablations(step: int, lr: float, batch_size: int, test: bool = False) ->
     })
     model_configs: list[tuple[str, nn.Module, list[tuple[str, dict[str, bool]]]]] = [
         ("D", ModelD(), [
-            ("_",   {'h1': False, 'rev_out': False}),
-            ("A",   {'h1': True,  'rev_out': False}),
-            ("R",   {'h1': False, 'rev_out': True}),
-            ("A+R", {'h1': True,  'rev_out': True}),
+            ("_",   {'h1': False, 'prog_out': False}),
+            ("A",   {'h1': True,  'prog_out': False}),
+            ("R",   {'h1': False, 'prog_out': True}),
+            ("A+R", {'h1': True,  'prog_out': True}),
         ]),
         ("U", ModelU(), [
-            ("_",   {'h1': False, 'rev_out': False}),
-            ("A",   {'h1': True,  'rev_out': False}),
-            ("R",   {'h1': False, 'rev_out': True}),
-            ("A+R", {'h1': True,  'rev_out': True}),
+            ("_",   {'h1': False, 'prog_out': False}),
+            ("A",   {'h1': True,  'prog_out': False}),
+            ("R",   {'h1': False, 'prog_out': True}),
+            ("A+R", {'h1': True,  'prog_out': True}),
         ]),
         ("T", ModelT(), [
-            ("_",   {'h1': False, 'rev_out': False}),
-            ("A",   {'h1': True,  'rev_out': False}),
-            ("R",   {'h1': False, 'rev_out': True}),
-            ("A+R", {'h1': True,  'rev_out': True}),
+            ("_",   {'h1': False, 'prog_out': False}),
+            ("A",   {'h1': True,  'prog_out': False}),
+            ("R",   {'h1': False, 'prog_out': True}),
+            ("A+R", {'h1': True,  'prog_out': True}),
         ]),
         ("I", ModelI(), [
             ("_",   {'h1': False}),
@@ -513,7 +513,7 @@ def plot_ablations(step: int, lr: float, batch_size: int, test: bool = False) ->
 
 # --- Probes ---
 
-def train_probes(model: nn.Module, lr: float, batch_size: int, steps: list[int] = [0, 250, 2500], rep: str = "rev_in") -> None:
+def train_probes(model: nn.Module, lr: float, batch_size: int, steps: list[int] = [0, 250, 2500], rep: str = "prog_in", test: bool = False) -> None:
     """Train and save a linear probe for each (step, seed) checkpoint.
     Saves each fitted probe as a .joblib file and writes a CSV of probe/task accuracies."""
     model_name = model.__class__.__name__.lower()
@@ -550,7 +550,7 @@ def train_probes(model: nn.Module, lr: float, batch_size: int, steps: list[int] 
             joblib.dump(clf, probes_dir / f"probe_{model_name}_{rep}_step{step}_seed{seed}_lr{lr}_bs{batch_size}.joblib")
 
             # Task accuracy
-            val_loader = DataLoader(datasets["val"], batch_size=1024)
+            val_loader = DataLoader(datasets["test" if test else "val"], batch_size=1024)
             correct = total = 0
             with torch.no_grad():
                 for x, y_task in val_loader:
@@ -566,7 +566,7 @@ def train_probes(model: nn.Module, lr: float, batch_size: int, steps: list[int] 
     pd.DataFrame(rows).to_csv(probes_dir / f"probe_{model_name}_{rep}_lr{lr}_bs{batch_size}.csv", index=False)
 
 
-def add_test_task_accuracy(lr: float, batch_size: int, rep: str = "rev_in") -> None:
+def add_test_task_accuracy(lr: float, batch_size: int, rep: str = "prog_in") -> None:
     """Compute test task accuracy from saved checkpoints and write it into the probe CSV for models D, T, U."""
     test_loader = DataLoader(datasets["test"], batch_size=1024)
 
@@ -602,7 +602,7 @@ def add_test_task_accuracy(lr: float, batch_size: int, rep: str = "rev_in") -> N
         df.to_csv(csv_path, index=False)
 
 
-def plot_probe(model: nn.Module, lr: float, batch_size: int, rep: str = "rev_in", test: bool = False) -> None:
+def plot_probe(model: nn.Module, lr: float, batch_size: int, rep: str = "prog_in", test: bool = False) -> None:
     """Plot task accuracy and probe accuracy from saved probe results CSV."""
     model_name = model.__class__.__name__.lower()
     csv_path = _data_dir / "probes" / f"probe_{model_name}_{rep}_lr{lr}_bs{batch_size}.csv"
@@ -640,7 +640,7 @@ def plot_probe(model: nn.Module, lr: float, batch_size: int, rep: str = "rev_in"
     plt.show()
 
 
-def plot_probe_all(models_list: list[nn.Module], lr: float, batch_size: int, rep: str = "rev_in", test: bool = False) -> None:
+def plot_probe_all(models_list: list[nn.Module], lr: float, batch_size: int, rep: str = "prog_in", test: bool = False) -> None:
     plt.rcParams.update({
         'font.size': 12,
         'axes.titlesize': 36,
@@ -700,7 +700,7 @@ def plot_probe_all(models_list: list[nn.Module], lr: float, batch_size: int, rep
 def plot_steering(step: int, lr: float, batch_size: int, n_targets: int = 50, k: int = 1, test: bool = False) -> None:
     """Plot steerability vs alpha for Models D, U, T.
 
-    For each alpha, steers all rev_in positions simultaneously toward a random
+    For each alpha, steers all prog_in positions simultaneously toward a random
     input string s and measures the fraction of output positions where the target
     token (s[::-1][i]) appears in the top-k logits. k=1 is exact argmax accuracy.
     Averaged over n_targets random strings and all seeds.
@@ -728,7 +728,7 @@ def plot_steering(step: int, lr: float, batch_size: int, n_targets: int = 50, k:
             model.load_state_dict(ckpt["state_dict"])
             model.eval()
 
-            probe_path = _data_dir / "probes" / f"probe_{model_name}_rev_in_step{step}_seed{seed}_lr{lr}_bs{batch_size}.joblib"
+            probe_path = _data_dir / "probes" / f"probe_{model_name}_prog_in_step{step}_seed{seed}_lr{lr}_bs{batch_size}.joblib"
             clf = joblib.load(probe_path)
             W = torch.tensor(clf.coef_, dtype=torch.float32)  # [n_classes, d_head]
             class_to_idx = {int(c): i for i, c in enumerate(clf.classes_)}
@@ -757,7 +757,7 @@ def plot_steering(step: int, lr: float, batch_size: int, n_targets: int = 50, k:
     ax.set_xlabel("α")
     ax.set_ylabel("Mean Steerability (Top-K)")
     ax.legend(title="Model")
-    fig.suptitle("Steerability: steering rev_in to reverse random inputs", fontsize=18)
+    fig.suptitle("Steerability: steering prog_in to reverse random inputs", fontsize=18)
     fig.tight_layout()
     fig.savefig(_data_dir.parent / "plots" / f"steering_step{step}_lr{lr}_bs{batch_size}_k{k}.pdf")
     plt.show()
@@ -801,7 +801,7 @@ def plot_steering_all(step: int, lr: float, batch_size: int, n_targets: int = 50
             model.load_state_dict(ckpt["state_dict"])
             model.eval()
 
-            probe_path = _data_dir / "probes" / f"probe_{model_name}_rev_in_step{step}_seed{seed}_lr{lr}_bs{batch_size}.joblib"
+            probe_path = _data_dir / "probes" / f"probe_{model_name}_prog_in_step{step}_seed{seed}_lr{lr}_bs{batch_size}.joblib"
             clf = joblib.load(probe_path)
             W = torch.tensor(clf.coef_, dtype=torch.float32)
             class_to_idx = {int(c): i for i, c in enumerate(clf.classes_)}

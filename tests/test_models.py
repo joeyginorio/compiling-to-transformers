@@ -3,7 +3,8 @@ from hypothesis import given, settings, HealthCheck
 from cajal.syntax import TyProd, TySum, TyUnit, TmProj, TmVar
 from cajal.evaluating import evaluate
 from cajal.compiling import compile_val
-from experiments.reverse.models import reverse, reverse_attn, reverse_module, reverse_attn_module
+from experiments.reverse.models import reverse, reverse_attn, program_module
+import cajal.compiling as cj
 from strategies import gen_val
 
 _elem_ty = TySum([TyUnit()] * 4)
@@ -24,4 +25,5 @@ def test_reverse_attn_eval_equiv(v):
 @given(gen_val(_seq_ty, set()))
 def test_reverse_attn_compiled_equiv(v):
     x_vec = compile_val(v)({})
-    torch.testing.assert_close(reverse_module({'x': x_vec}), reverse_attn_module({'x': x_vec}))
+    reverse_module = cj.compile(reverse)
+    torch.testing.assert_close(reverse_module({'x': x_vec}), program_module({'x': x_vec}))

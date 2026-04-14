@@ -10,8 +10,6 @@ from cajal.syntax import TmProd, TmProj, TmVar, TySum, TyUnit, TyProd, TmDict, T
 elem_ty = TySum([TyUnit()] * 4)
 reverse = TmProd([TmProj(14 - i, TmVar('x')) for i in range(15)])
 check(reverse, {'x': TyProd([elem_ty] * 15)})
-reverse_module = cj.compile(reverse)
-
 # Dictionary-based reverse: compiles to a linear attention head.
 # Keys and values form a KV memory (position -> reversed element),
 # and each lookup q attends via dot product: ∑_i ⟨k_i, q⟩ · v_i.
@@ -27,7 +25,9 @@ reverse_attn = TmLet(
     ])
 )
 check(reverse_attn, {'x': TyProd([elem_ty] * 15)})
-reverse_attn_module = cj.compile(reverse_attn)
+
+# NOTE: Set the programmed module here.
+program_module = cj.compile(reverse_attn)
 
 # --- Models ---
 
@@ -48,13 +48,13 @@ class ModelD(nn.Module):
         self.out = nn.Linear(d_model, vocab_size)
 
         d_head = d_model // n_heads
-        self.rev = reverse_attn_module
-        self.rev_proj_in = nn.Linear(d_model, d_head, bias=False)
+        self.prog = program_module
+        self.prog_proj_in = nn.Linear(d_model, d_head, bias=False)
         self.merge = nn.Linear(d_model + d_head, d_model, bias=False)
 
     def forward(self, x: torch.Tensor,
                 representations: bool = False,
-                ablate: dict[str, bool] = {'h1': False, 'rev_out': False},
+                ablate: dict[str, bool] = {'h1': False, 'prog_out': False},
                 steer: dict[int, torch.Tensor] | None = None) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
         x1 = self.tok_emb(x) + self.pos_emb(self.positions)
 
@@ -62,22 +62,22 @@ class ModelD(nn.Module):
         if ablate['h1']:
             h1 = torch.roll(h1, shifts=1, dims=0)
 
-        rev_in = self.rev_proj_in(x1[:, :SEQ_LEN, :]) # NOTE: Only pass in the first 15 chars!
+        prog_in = self.prog_proj_in(x1[:, :SEQ_LEN, :]) # NOTE: Only pass in the first 15 chars!
         if steer is not None:
             for pos, vec in steer.items():
-                rev_in[:, pos, :] = rev_in[:, pos, :] + vec
-        rev_out = torch.vmap(self.rev)({'x': rev_in.flatten(start_dim=1)}).reshape(rev_in.shape)
-        if ablate['rev_out']:
-            rev_out = torch.roll(rev_out, shifts=1, dims=0)
-        rev_out_padded = torch.cat([torch.zeros_like(rev_out), rev_out], dim=1)
+                prog_in[:, pos, :] = prog_in[:, pos, :] + vec
+        prog_out = torch.vmap(self.prog)({'x': prog_in.flatten(start_dim=1)}).reshape(prog_in.shape)
+        if ablate['prog_out']:
+            prog_out = torch.roll(prog_out, shifts=1, dims=0)
+        prog_out_padded = torch.cat([torch.zeros_like(prog_out), prog_out], dim=1)
 
-        r1 = self.merge(torch.cat([h1, rev_out_padded], dim=-1)) + x1
+        r1 = self.merge(torch.cat([h1, prog_out_padded], dim=-1)) + x1
         r2 = self.mlp(r1) + r1
         logits = self.out(r2)
 
         if representations:
-            rev_in_padded = torch.cat([torch.zeros_like(rev_in), rev_in], dim=1)
-            return logits, {"x1": x1, "h1": h1, "r1": r1, "r2": r2, "rev_in": rev_in_padded, "rev_out": rev_out_padded}
+            prog_in_padded = torch.cat([torch.zeros_like(prog_in), prog_in], dim=1)
+            return logits, {"x1": x1, "h1": h1, "r1": r1, "r2": r2, "prog_in": prog_in_padded, "prog_out": prog_out_padded}
         else:
             return logits
 
@@ -98,13 +98,13 @@ class ModelU(nn.Module):
         self.out = nn.Linear(d_model, vocab_size)
 
         d_head = d_model // n_heads
-        self.rev = cj.to_multilinear(reverse_attn_module, rand=False, sample_env={'x': torch.zeros(SEQ_LEN * d_head)})
-        self.rev_proj_in = nn.Linear(d_model, d_head, bias=False)
+        self.prog = cj.to_multilinear(program_module, rand=False, sample_env={'x': torch.zeros(SEQ_LEN * d_head)})
+        self.prog_proj_in = nn.Linear(d_model, d_head, bias=False)
         self.merge = nn.Linear(d_model + d_head, d_model, bias=False)
 
     def forward(self, x: torch.Tensor,
                 representations: bool = False,
-                ablate: dict[str, bool] = {'h1': False, 'rev_out': False},
+                ablate: dict[str, bool] = {'h1': False, 'prog_out': False},
                 steer: dict[int, torch.Tensor] | None = None) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
         x1 = self.tok_emb(x) + self.pos_emb(self.positions)
 
@@ -112,22 +112,22 @@ class ModelU(nn.Module):
         if ablate['h1']:
             h1 = torch.roll(h1, shifts=1, dims=0)
 
-        rev_in = self.rev_proj_in(x1[:, :SEQ_LEN, :])
+        prog_in = self.prog_proj_in(x1[:, :SEQ_LEN, :])
         if steer is not None:
             for pos, vec in steer.items():
-                rev_in[:, pos, :] = rev_in[:, pos, :] + vec
-        rev_out = torch.vmap(self.rev)({'x': rev_in.flatten(start_dim=1)}).reshape(rev_in.shape)
-        if ablate['rev_out']:
-            rev_out = torch.roll(rev_out, shifts=1, dims=0)
-        rev_out_padded = torch.cat([torch.zeros_like(rev_out), rev_out], dim=1)
+                prog_in[:, pos, :] = prog_in[:, pos, :] + vec
+        prog_out = torch.vmap(self.prog)({'x': prog_in.flatten(start_dim=1)}).reshape(prog_in.shape)
+        if ablate['prog_out']:
+            prog_out = torch.roll(prog_out, shifts=1, dims=0)
+        prog_out_padded = torch.cat([torch.zeros_like(prog_out), prog_out], dim=1)
 
-        r1 = self.merge(torch.cat([h1, rev_out_padded], dim=-1)) + x1
+        r1 = self.merge(torch.cat([h1, prog_out_padded], dim=-1)) + x1
         r2 = self.mlp(r1) + r1
         logits = self.out(r2)
 
         if representations:
-            rev_in_padded = torch.cat([torch.zeros_like(rev_in), rev_in], dim=1)
-            return logits, {"x1": x1, "h1": h1, "r1": r1, "r2": r2, "rev_in": rev_in_padded, "rev_out": rev_out_padded}
+            prog_in_padded = torch.cat([torch.zeros_like(prog_in), prog_in], dim=1)
+            return logits, {"x1": x1, "h1": h1, "r1": r1, "r2": r2, "prog_in": prog_in_padded, "prog_out": prog_out_padded}
         else:
             return logits
 
@@ -148,13 +148,13 @@ class ModelT(nn.Module):
         self.out = nn.Linear(d_model, vocab_size)
 
         d_head = d_model // n_heads
-        self.rev = cj.to_multilinear(reverse_attn_module, rand=True, sample_env={'x': torch.zeros(SEQ_LEN * d_head)})
-        self.rev_proj_in = nn.Linear(d_model, d_head, bias=False)
+        self.prog = cj.to_multilinear(program_module, rand=True, sample_env={'x': torch.zeros(SEQ_LEN * d_head)})
+        self.prog_proj_in = nn.Linear(d_model, d_head, bias=False)
         self.merge = nn.Linear(d_model + d_head, d_model, bias=False)
 
     def forward(self, x: torch.Tensor,
                 representations: bool = False,
-                ablate: dict[str, bool] = {'h1': False, 'rev_out': False},
+                ablate: dict[str, bool] = {'h1': False, 'prog_out': False},
                 steer: dict[int, torch.Tensor] | None = None) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
         x1 = self.tok_emb(x) + self.pos_emb(self.positions)
 
@@ -162,22 +162,22 @@ class ModelT(nn.Module):
         if ablate['h1']:
             h1 = torch.roll(h1, shifts=1, dims=0)
 
-        rev_in = self.rev_proj_in(x1[:, :SEQ_LEN, :])
+        prog_in = self.prog_proj_in(x1[:, :SEQ_LEN, :])
         if steer is not None:
             for pos, vec in steer.items():
-                rev_in[:, pos, :] = rev_in[:, pos, :] + vec
-        rev_out = torch.vmap(self.rev)({'x': rev_in.flatten(start_dim=1)}).reshape(rev_in.shape)
-        if ablate['rev_out']:
-            rev_out = torch.roll(rev_out, shifts=1, dims=0)
-        rev_out_padded = torch.cat([torch.zeros_like(rev_out), rev_out], dim=1)
+                prog_in[:, pos, :] = prog_in[:, pos, :] + vec
+        prog_out = torch.vmap(self.prog)({'x': prog_in.flatten(start_dim=1)}).reshape(prog_in.shape)
+        if ablate['prog_out']:
+            prog_out = torch.roll(prog_out, shifts=1, dims=0)
+        prog_out_padded = torch.cat([torch.zeros_like(prog_out), prog_out], dim=1)
 
-        r1 = self.merge(torch.cat([h1, rev_out_padded], dim=-1)) + x1
+        r1 = self.merge(torch.cat([h1, prog_out_padded], dim=-1)) + x1
         r2 = self.mlp(r1) + r1
         logits = self.out(r2)
 
         if representations:
-            rev_in_padded = torch.cat([torch.zeros_like(rev_in), rev_in], dim=1)
-            return logits, {"x1": x1, "h1": h1, "r1": r1, "r2": r2, "rev_in": rev_in_padded, "rev_out": rev_out_padded}
+            prog_in_padded = torch.cat([torch.zeros_like(prog_in), prog_in], dim=1)
+            return logits, {"x1": x1, "h1": h1, "r1": r1, "r2": r2, "prog_in": prog_in_padded, "prog_out": prog_out_padded}
         else:
             return logits
 
