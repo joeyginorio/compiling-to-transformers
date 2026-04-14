@@ -8,6 +8,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
+import matplotlib.colors as mcolors
 import seaborn as sns
 import torch.nn as nn
 from pathlib import Path
@@ -88,6 +89,14 @@ def add_test_loss(lr: float, batch_size: int, max_step: int = 800) -> None:
 
 
 def plot_behavioral_dynamics(lr: float | None = None, batch_size: int | None = None, max_step: int = 800, test: bool = False):
+    plt.rcParams.update({
+        'font.size': 12,
+        'figure.titlesize': 34,
+        'axes.labelsize': 34,
+        'xtick.labelsize': 24,
+        'ytick.labelsize': 24,
+        'legend.fontsize': 24,
+    })
     frames: list[pd.DataFrame] = []
     hm_frames: list[pd.DataFrame] = []
     loss_col = "test_loss" if test else "val_loss"
@@ -132,7 +141,7 @@ def plot_behavioral_dynamics(lr: float | None = None, batch_size: int | None = N
     data = pd.concat(frames, ignore_index=True)
     hm_data = pd.concat(hm_frames, ignore_index=True)
 
-    fig, (*ax_hms, ax_train, ax_val) = plt.subplots(6, 1, figsize=(8, 14))
+    fig, (*ax_hms, ax_train, ax_val) = plt.subplots(6, 1, figsize=(8, 20))
     ax_val.sharex(ax_train)
     ax_train.sharey(ax_val)
 
@@ -142,33 +151,39 @@ def plot_behavioral_dynamics(lr: float | None = None, batch_size: int | None = N
         hm = hm.loc[:, hm.columns.astype(int) <= max_step]
         cmap = sns.light_palette(palette[model_label], as_cmap=True)
         sns.heatmap(hm, ax=ax_hm, vmin=0, vmax=1, cmap=cmap, cbar=False,
-                    xticklabels=50, yticklabels=True)
+                    xticklabels=50, yticklabels=False)
         cax = ax_hm.inset_axes([1.01, 0.1, 0.02, 0.8])
         fig.colorbar(ax_hm.collections[0], cax=cax)
         ax_hm.set_xlabel("")
-        ax_hm.set_ylabel(model_label)
+        ax_hm.set_ylabel(f"{model_label}\no–a", color=palette[model_label], fontweight="bold")
         ax_hm.tick_params(labelbottom=False)
 
+    linestyles = {"D": (1, 0), "U": (5, 2), "T": (1, 2), "I": (5, 2, 1, 2)}
+
     # Train loss
-    sns.lineplot(data=data, x="step", y="train_loss", hue="model",
-                 palette=palette, hue_order=hue_order, ax=ax_train, errorbar="sd")
-    ax_train.set_ylabel("Train Loss")
+    sns.lineplot(data=data, x="step", y="train_loss", hue="model", style="model",
+                 palette=palette, hue_order=hue_order, style_order=hue_order,
+                 dashes=linestyles, ax=ax_train, errorbar="sd", linewidth=3.5)
+    ax_train.set_ylabel("Train")
     ax_train.set_xlabel("")
-    ax_train.legend(title="Model")
+    ax_train.legend_.remove() if ax_train.legend_ else None
     ax_train.set_xlim(0, max_step)
     ax_train.tick_params(labelbottom=False)
 
     # Val/Test loss
-    sns.lineplot(data=data, x="step", y=loss_col, hue="model",
-                 palette=palette, hue_order=hue_order, ax=ax_val, errorbar="sd")
-    ax_val.set_xlabel("Step")
+    sns.lineplot(data=data, x="step", y=loss_col, hue="model", style="model",
+                 palette=palette, hue_order=hue_order, style_order=hue_order,
+                 dashes=linestyles, ax=ax_val, errorbar="sd", linewidth=3.5)
+    ax_val.set_xlabel("Step", labelpad=20)
     ax_val.set_ylim(bottom=-0.05)
-    ax_val.set_ylabel("Test Loss" if test else "Val Loss")
-    ax_val.legend(title="Model")
+    ax_val.set_ylabel("Test" if test else "Val")
+    ax_val.legend_.remove() if ax_val.legend_ else None
 
-    fig.suptitle("Behavioral Dynamics", fontsize=18)
     fig.set_size_inches(8, 12)
     fig.tight_layout()
+    handles, labels = ax_val.get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower right", bbox_to_anchor=(0.92, 0.18),
+               bbox_transform=fig.transFigure, frameon=True)
     lr_tag = f"_lr{lr}" if lr is not None else "_lrbest"
     bs_tag = f"_bs{batch_size}" if batch_size is not None else "_bsbest"
     fname = f"behavioral_dynamics{lr_tag}{bs_tag}_maxstep{max_step}.pdf"
@@ -324,11 +339,21 @@ def plot_pca_3d(model: nn.Module, step: int, lr: float, batch_size: int, seed: i
 
 
 def plot_pca_all(models_list: list[nn.Module], step: int, lr: float, batch_size: int, seed: int,
-                 positions: list[int], rep: str = "r1", 
+                 positions: list[int], rep: str = "r1",
                  ablate: dict[str, bool] | None = None,
                  target: bool = True) -> None:
+    plt.rcParams.update({
+        'font.size': 12,
+        'axes.titlesize': 38,
+        'axes.labelsize': 34,
+        'figure.labelsize': 32,
+        'xtick.labelsize': 20,
+        'ytick.labelsize': 20,
+        'legend.fontsize': 22,
+        'legend.title_fontsize': 22,
+    })
     n = len(models_list)
-    fig, axes = plt.subplots(2, n, figsize=(4 * n, 7), squeeze=True)
+    fig, axes = plt.subplots(2, n, figsize=(4 * n, 8), squeeze=True, sharex="col", sharey="col")
 
     for col, model in enumerate(models_list):
         result = pca(model, step, lr, batch_size, seed, positions=positions, ablate=ablate)
@@ -354,52 +379,62 @@ def plot_pca_all(models_list: list[nn.Module], step: int, lr: float, batch_size:
 
         var = fitted.explained_variance_ratio_
         model_key = model.__class__.__name__[-1].upper()
+        print(f"Model {model_key}: PC1={var[0]:.1%}, PC2={var[1]:.1%}")
 
         ax1, ax2 = axes[0, col], axes[1, col]
-        ax1.set_title(f"Model {model_key}", fontsize=18, color=palette[model_key], fontweight="bold", pad=12)
+        ax1.set_title(f"{model_key}", color=palette[model_key], fontweight="bold", pad=12)
 
         # top: colored by target or input token
         hue_col = "target" if target else "input"
         sns.scatterplot(data=df, x="PC1", y="PC2", hue=hue_col,
-                        palette="turbo", alpha=0.5, s=10, ax=ax1, legend=False)
+                        palette="turbo", alpha=0.5, s=10, ax=ax1, legend=False, rasterized=True)
         for char, group in df.groupby(hue_col):
             cx, cy = float(group["PC1"].mean()), float(group["PC2"].mean())
-            ax1.text(cx, cy, str(char), fontsize=11, fontweight="bold", ha="center", va="center",
+            ax1.text(cx, cy, str(char), fontsize=22, fontweight="bold", ha="center", va="center",
                      bbox=dict(facecolor="white", edgecolor="none", pad=1.5,
-                               alpha=0.6, boxstyle="circle,pad=0.5"))
+                               alpha=0.15, boxstyle="circle,pad=0.15"))
         ax1.set_anchor("N")
         ax1.set_xlabel("")
-        ax1.set_ylabel(f"PC2 ({var[1]:.1%})")
-        if col == 0:
-            cmap = plt.cm.get_cmap("turbo")
-            n_swatches = 6
-            handles = [mpatches.Patch(color=cmap(i / (n_swatches - 1)), alpha=0.5) for i in range(n_swatches)]
-            ax1.legend(handles=handles, labels=[""] * n_swatches, title="Target Token",
-                       loc="upper left", ncol=n_swatches, handlelength=1,
-                       handletextpad=0, columnspacing=0.2)
+        ax1.tick_params(labelbottom=False)
+        ax1.set_ylabel("")
 
         # bottom: colored by position
         sns.scatterplot(data=df, x="PC1", y="PC2", hue="Position",
-                        palette="turbo", alpha=0.5, s=10, ax=ax2)
+                        palette="turbo", alpha=0.5, s=10, ax=ax2, rasterized=True)
         ax2.set_anchor("N")
         if col == 0:
-            ax2.legend(loc="upper left", title="Position")
+            positions_sorted = sorted(df["Position"].unique())
+            norm = mcolors.Normalize(vmin=min(positions_sorted), vmax=max(positions_sorted))
+            cmap = plt.cm.get_cmap("turbo")
+            handles = [mpatches.Patch(color=cmap(norm(p)), alpha=0.8, label=str(p)) for p in positions_sorted]
+            ax2.legend(handles=handles, title="Position", loc="upper left",
+                       handlelength=1.5, handleheight=1.5)
         else:
             ax2.legend_.remove() if ax2.legend_ else None
-        ax2.set_xlabel(f"PC1 ({var[0]:.1%})")
-        ax2.set_ylabel(f"PC2 ({var[1]:.1%})")
+        ax2.set_xlabel("")
+        ax2.set_ylabel("")
 
     fname = f"pca_all_step{step}_lr{lr}_bs{batch_size}_seed{seed}_{rep}.pdf"
-    fig.suptitle(f"PCA at {rep.upper()}", fontsize=18)
+    fig.supxlabel("PC1", x=0.54, fontsize=plt.rcParams['axes.labelsize'])
+    fig.supylabel("PC2", y=0.55, fontsize=plt.rcParams['axes.labelsize'])
     fig.tight_layout()
-    fig.subplots_adjust(wspace=0.35)
-    fig.savefig(_data_dir.parent / "plots" / fname)
+    # fig.subplots_adjust(wspace=0.4)
+    fig.savefig(_data_dir.parent / "plots" / fname, dpi=600)
     plt.show()
 
 
 # --- Ablations ---
 
 def plot_ablations(step: int, lr: float, batch_size: int, test: bool = False) -> None:
+    plt.rcParams.update({
+        'font.size': 12,
+        'axes.titlesize': 12,
+        'axes.labelsize': 34,
+        'xtick.labelsize': 30,
+        'ytick.labelsize': 28,
+        'legend.fontsize': 28,
+        'legend.title_fontsize': 22,
+    })
     model_configs: list[tuple[str, nn.Module, list[tuple[str, dict[str, bool]]]]] = [
         ("D", ModelD(), [
             ("_",   {'h1': False, 'rev_out': False}),
@@ -450,17 +485,26 @@ def plot_ablations(step: int, lr: float, batch_size: int, test: bool = False) ->
 
     df = pd.DataFrame(rows)
 
-    fig, ax = plt.subplots(figsize=(8, 4))
+    fig, ax = plt.subplots(figsize=(8, 6))
+    hatches = {"D": "", "U": "/", "T": "--", "I": "||"}
     sns.barplot(data=df, x="condition", y="accuracy", hue="model",
                 order=all_conditions, hue_order=hue_order,
-                palette=palette, errorbar="sd", capsize=0.1, ax=ax, width=0.6,
-                err_kws={"color": "black", "linewidth": 1.5})
-    ax.axhline(1 / 26, color="black", linestyle="--", linewidth=1, label="Chance")
-    ax.set_xlabel("Ablation")
-    ax.set_ylabel("Accuracy")
+                palette=palette, errorbar="sd", capsize=0.4, ax=ax, width=0.65,
+                err_kws={"color": "black", "linewidth": 2.5})
+    for container, model_label in zip(ax.containers, hue_order):
+        for bar in container:
+            bar.set_hatch(hatches[model_label])
+    ax.axhline(1 / 26, color="black", linestyle="--", linewidth=3.5, label="Chance")
+    ax.set_xlabel("Ablation", labelpad=20)
+    ax.set_ylabel("Accuracy", labelpad=20)
     ax.set_ylim(0, 1)
-    ax.legend(title="Model")
-    fig.suptitle("Ablations on Attention (A) and Reverse (R)", fontsize=18)
+    legend = ax.legend(title="")
+    for handle, text in zip(legend.legend_handles, legend.get_texts()):
+        label = text.get_text()
+        if label in palette:
+            text.set_color(palette[label])
+            if isinstance(handle, mpatches.Patch):
+                handle.set_hatch(hatches[label])
     fig.tight_layout()
     fname = f"ablations_step{step}_lr{lr}_bs{batch_size}.pdf"
     fig.savefig(_data_dir.parent / "plots" / fname)
@@ -597,8 +641,17 @@ def plot_probe(model: nn.Module, lr: float, batch_size: int, rep: str = "rev_in"
 
 
 def plot_probe_all(models_list: list[nn.Module], lr: float, batch_size: int, rep: str = "rev_in", test: bool = False) -> None:
+    plt.rcParams.update({
+        'font.size': 12,
+        'axes.titlesize': 36,
+        'axes.labelsize': 30,
+        'xtick.labelsize': 24,
+        'ytick.labelsize': 24,
+        'legend.fontsize': 24,
+    })
+    markers = {"D": "o", "U": "s", "T": "^", "I": "D"}
     n = len(models_list)
-    fig, axes = plt.subplots(1, n, figsize=(5 * n, 4), sharey=True)
+    fig, axes = plt.subplots(1, n, figsize=(5 * n, 4.5), sharey=True)
     task_col = "test_task_accuracy" if test else "task_accuracy"
 
     if test:
@@ -614,28 +667,29 @@ def plot_probe_all(models_list: list[nn.Module], lr: float, batch_size: int, rep
         results = pd.read_csv(csv_path)
 
         ax = axes[col]
-        ax.set_title(f"Model {model_key}", fontsize=18, color=palette[model_key], fontweight="bold", pad=12)
+        ax.set_title(f"{model_key}", color=palette[model_key], fontweight="bold", pad=12)
 
+        mk = markers.get(model_key, "o")
         sns.lineplot(data=results, x="step", y=task_col, ax=ax, color=palette[model_key],
-                     errorbar="sd", label="Task Accuracy", marker="s", linestyle=":")
+                     errorbar="sd", label="Task", linestyle=":", linewidth=3.5)
         sns.lineplot(data=results, x="step", y="probe_accuracy", ax=ax, color=palette[model_key],
-                     errorbar="sd", label="Probe Accuracy", marker="o", linestyle="-")
-        ax.axhline(1 / 26, color="black", linestyle="--", linewidth=1, label="Chance")
-        ax.set_xlabel("Step")
-        ax.set_ylabel("Accuracy" if col == 0 else "")
+                     errorbar="sd", label="Probe", linestyle="-", linewidth=3.5,
+                     marker=mk, markersize=12)
+        ax.axhline(1 / 26, color="black", linestyle="--", linewidth=3.5, label="Chance")
+        ax.set_xlabel("Step" if col == n // 2 else "", labelpad=20)
+        ax.set_ylabel("Accuracy" if col == 0 else "", labelpad=20)
         ax.set_ylim(0, 1)
         ax.set_xlim(0, 600)
         if col == 0:
             legend_handles = [
-                mlines.Line2D([], [], color="black", marker="s", linestyle=":", label="Task Accuracy"),
-                mlines.Line2D([], [], color="black", marker="o", linestyle="-", label="Probe Accuracy"),
-                mlines.Line2D([], [], color="black", linestyle="--", linewidth=1, label="Chance"),
+                mlines.Line2D([], [], color="black", linewidth=3.5, linestyle=":", label="Task"),
+                mlines.Line2D([], [], color="black", linestyle="-", linewidth=3.5, label="Probe"),
+                mlines.Line2D([], [], color="black", linestyle="--", linewidth=3.5, label="Chance"),
             ]
             ax.legend(handles=legend_handles)
         else:
             ax.legend_.remove() if ax.legend_ else None
 
-    fig.suptitle("Do correct embeddings of token identity drive behavior?", fontsize=18)
     fig.tight_layout()
     fig.savefig(_data_dir.parent / "plots" / f"probe_all_{rep}_lr{lr}_bs{batch_size}.pdf")
     plt.show()
@@ -654,7 +708,7 @@ def plot_steering(step: int, lr: float, batch_size: int, n_targets: int = 50, k:
     import random as _random
 
     model_configs = [("D", ModelD()), ("U", ModelU()), ("T", ModelT())]
-    alphas = [0.0, 0.2, 0.4, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
+    alphas = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
     letters = [decode[i] for i in range(26)]
 
     rng = _random.Random(42)
@@ -715,10 +769,18 @@ def plot_steering_all(step: int, lr: float, batch_size: int, n_targets: int = 50
     Runs forward passes once per (model, seed, alpha, input string) and computes
     top-k accuracy for all three k values simultaneously.
     """
+    plt.rcParams.update({
+        'font.size': 12,
+        'axes.titlesize': 32,
+        'axes.labelsize': 30,
+        'xtick.labelsize': 24,
+        'ytick.labelsize': 24,
+        'legend.fontsize': 24,
+    })
     import random as _random
 
     model_configs = [("D", ModelD()), ("U", ModelU()), ("T", ModelT())]
-    alphas = [0.0, 0.2, 0.4, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
+    alphas = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
     ks = [1, 2, 3]
     letters = [decode[i] for i in range(26)]
 
@@ -764,23 +826,31 @@ def plot_steering_all(step: int, lr: float, batch_size: int, n_targets: int = 50
                                      "k": k, "steerability": counts[k] / total})
 
     df = pd.DataFrame(rows)
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4), sharey=True)
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), sharey=True)
 
+    markers = {"D": "o", "U": "s", "T": "^"}
     for col, k in enumerate(ks):
         ax = axes[col]
-        sns.lineplot(data=df[df["k"] == k].copy(), x="alpha", y="steerability", hue="model",  # type: ignore[arg-type]
-                     palette={m: palette[m] for m in ["D", "U", "T"]},
-                     hue_order=["D", "U", "T"],
-                     errorbar="sd", marker="o", ax=ax)
-        ax.set_title(f"K={k}", fontsize=14)
-        ax.set_xlabel("Alpha")
-        ax.set_ylabel("Mean Steerability (Top-K)" if col == 0 else "")
+        for model_label in ["D", "U", "T"]:
+            subset = pd.DataFrame(df[(df["k"] == k) & (df["model"] == model_label)])
+            sns.lineplot(data=subset,
+                         x="alpha", y="steerability",
+                         color=palette[model_label], label=model_label,
+                         errorbar="sd", marker=markers[model_label], ax=ax, linewidth=3.5,
+                         markersize=12)
+        ax.set_title(f"K={k}", fontweight="bold", pad=12)
+        ax.set_xlabel("Alpha" if col == len(ks) // 2 else "", labelpad=20)
+        ax.set_ylabel("Steerability" if col == 0 else "",labelpad=20)
         if col == 0:
-            ax.legend(title="Model")
+            legend = ax.legend(title="")
+            for handle, text in zip(legend.legend_handles, legend.get_texts()):
+                label = text.get_text()
+                if label in palette:
+                    text.set_color(palette[label])
+                    handle.set_markersize(12)  # type: ignore[union-attr]
         else:
             ax.legend_.remove()
 
-    fig.suptitle("Can these embeddings be steered to change behavior?", fontsize=18)
     fig.tight_layout()
     fig.savefig(_data_dir.parent / "plots" / f"steering_all_step{step}_lr{lr}_bs{batch_size}.pdf")
     plt.show()

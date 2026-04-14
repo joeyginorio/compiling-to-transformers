@@ -3,7 +3,7 @@ import torch.nn as nn
 from experiments.reverse.dataset import decode, SEQ_LEN
 import cajal.compiling as cj
 from cajal.typing import check
-from cajal.syntax import TmProd, TmProj, TmVar, TySum, TyUnit, TyProd
+from cajal.syntax import TmProd, TmProj, TmVar, TySum, TyUnit, TyProd, TmDict, TmLet, TmLookup, TmInj, TmUnit
 
 # --- Program ---
 
@@ -11,6 +11,23 @@ elem_ty = TySum([TyUnit()] * 4)
 reverse = TmProd([TmProj(14 - i, TmVar('x')) for i in range(15)])
 check(reverse, {'x': TyProd([elem_ty] * 15)})
 reverse_module = cj.compile(reverse)
+
+# Dictionary-based reverse: compiles to a linear attention head.
+# Keys and values form a KV memory (position -> reversed element),
+# and each lookup q attends via dot product: ∑_i ⟨k_i, q⟩ · v_i.
+pos_ty = TySum([TyUnit()] * 15)
+_keys = TmProd([TmInj(i, TmUnit(), pos_ty) for i in range(15)])
+_vals = TmProd([TmProj(14 - i, TmVar('x')) for i in range(15)])
+reverse_attn = TmLet(
+    'd',
+    TmDict(_keys, _vals),
+    TmProd([
+        TmLookup(TmVar('d'), TmInj(i, TmUnit(), pos_ty), lambda a, b: a == b)
+        for i in range(15)
+    ])
+)
+check(reverse_attn, {'x': TyProd([elem_ty] * 15)})
+reverse_attn_module = cj.compile(reverse_attn)
 
 # --- Models ---
 
@@ -31,7 +48,7 @@ class ModelD(nn.Module):
         self.out = nn.Linear(d_model, vocab_size)
 
         d_head = d_model // n_heads
-        self.rev = reverse_module
+        self.rev = reverse_attn_module
         self.rev_proj_in = nn.Linear(d_model, d_head, bias=False)
         self.merge = nn.Linear(d_model + d_head, d_model, bias=False)
 
@@ -81,7 +98,7 @@ class ModelU(nn.Module):
         self.out = nn.Linear(d_model, vocab_size)
 
         d_head = d_model // n_heads
-        self.rev = cj.to_multilinear(reverse_module, rand=False, sample_env={'x': torch.zeros(SEQ_LEN * d_head)})
+        self.rev = cj.to_multilinear(reverse_attn_module, rand=False, sample_env={'x': torch.zeros(SEQ_LEN * d_head)})
         self.rev_proj_in = nn.Linear(d_model, d_head, bias=False)
         self.merge = nn.Linear(d_model + d_head, d_model, bias=False)
 
@@ -131,7 +148,7 @@ class ModelT(nn.Module):
         self.out = nn.Linear(d_model, vocab_size)
 
         d_head = d_model // n_heads
-        self.rev = cj.to_multilinear(reverse_module, rand=True, sample_env={'x': torch.zeros(SEQ_LEN * d_head)})
+        self.rev = cj.to_multilinear(reverse_attn_module, rand=True, sample_env={'x': torch.zeros(SEQ_LEN * d_head)})
         self.rev_proj_in = nn.Linear(d_model, d_head, bias=False)
         self.merge = nn.Linear(d_model + d_head, d_model, bias=False)
 

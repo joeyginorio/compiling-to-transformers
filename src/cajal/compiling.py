@@ -24,8 +24,12 @@ def compile(tm: Tm) -> nn.Module:
         case TmUnit():
 
             class NnUnit(nn.Module):
+                def __init__(self):
+                    super().__init__()
+                    self.value: torch.Tensor
+                    self.register_buffer('value', torch.tensor([1.0]))
                 def forward(self, _: Env) -> torch.Tensor:
-                    return torch.tensor([1.0])
+                    return self.value
 
             return NnUnit()
 
@@ -207,8 +211,12 @@ def compile_val(v: Val) -> nn.Module:
         case VUnit():
 
             class NnUnit(nn.Module):
+                def __init__(self):
+                    super().__init__()
+                    self.value: torch.Tensor
+                    self.register_buffer('value', torch.tensor([1.0]))
                 def forward(self, _: Env) -> torch.Tensor:
-                    return torch.tensor([1.0])
+                    return self.value
 
             return NnUnit()
 
@@ -316,8 +324,9 @@ def to_multilinear(module: nn.Module, rand: bool = False, sample_env: 'Env | Non
             var_names = list(env.keys())
             dims = [env[x].shape[0] for x in var_names]
 
-            # Standard basis for each variable's vector space.
-            bases = [torch.eye(d) for d in dims]
+            # Standard basis on the same device as the module.
+            device = next((b.device for b in module.buffers()), torch.device('cpu'))
+            bases = [torch.eye(d, device=device) for d in dims]
 
             # Dimension of the tensor product space (d_x1 * d_x2 * ... * d_xk).
             d_in = 1
