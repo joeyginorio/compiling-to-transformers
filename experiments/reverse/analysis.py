@@ -187,7 +187,7 @@ def plot_behavioral_dynamics(lr: float | None = None, batch_size: int | None = N
     lr_tag = f"_lr{lr}" if lr is not None else "_lrbest"
     bs_tag = f"_bs{batch_size}" if batch_size is not None else "_bsbest"
     fname = f"behavioral_dynamics{lr_tag}{bs_tag}_maxstep{max_step}.pdf"
-    fig.savefig(_data_dir.parent / "plots" / fname)
+    fig.savefig(_data_dir.parent / "plots" / fname, bbox_inches='tight', pad_inches=0)
     plt.show()
 
 
@@ -286,7 +286,7 @@ def plot_pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
 
     fname = f"pca_{model_key}_step{step}_lr{lr}_bs{batch_size}_seed{seed}_{rep}.pdf"
     plt.tight_layout()
-    fig.savefig(_data_dir.parent / "plots" / fname)
+    fig.savefig(_data_dir.parent / "plots" / fname, bbox_inches='tight', pad_inches=0)
     plt.show()
 
 
@@ -419,7 +419,7 @@ def plot_pca_all(models_list: list[nn.Module], step: int, lr: float, batch_size:
     fig.supylabel("PC2", y=0.55, fontsize=plt.rcParams['axes.labelsize'])
     fig.tight_layout()
     # fig.subplots_adjust(wspace=0.4)
-    fig.savefig(_data_dir.parent / "plots" / fname, dpi=600)
+    fig.savefig(_data_dir.parent / "plots" / fname, dpi=600, bbox_inches='tight', pad_inches=0)
     plt.show()
 
 
@@ -507,7 +507,7 @@ def plot_ablations(step: int, lr: float, batch_size: int, test: bool = False) ->
                 handle.set_hatch(hatches[label])
     fig.tight_layout()
     fname = f"ablations_step{step}_lr{lr}_bs{batch_size}.pdf"
-    fig.savefig(_data_dir.parent / "plots" / fname)
+    fig.savefig(_data_dir.parent / "plots" / fname, bbox_inches='tight', pad_inches=0)
     plt.show()
 
 
@@ -636,7 +636,7 @@ def plot_probe(model: nn.Module, lr: float, batch_size: int, rep: str = "prog_in
     ax.set_ylim(0, 1)
     ax.legend()
     fig.tight_layout()
-    fig.savefig(_data_dir.parent / "plots" / f"probe_{model_name}_{rep}_lr{lr}_bs{batch_size}.pdf")
+    fig.savefig(_data_dir.parent / "plots" / f"probe_{model_name}_{rep}_lr{lr}_bs{batch_size}.pdf", bbox_inches='tight', pad_inches=0)
     plt.show()
 
 
@@ -691,7 +691,7 @@ def plot_probe_all(models_list: list[nn.Module], lr: float, batch_size: int, rep
             ax.legend_.remove() if ax.legend_ else None
 
     fig.tight_layout()
-    fig.savefig(_data_dir.parent / "plots" / f"probe_all_{rep}_lr{lr}_bs{batch_size}.pdf")
+    fig.savefig(_data_dir.parent / "plots" / f"probe_all_{rep}_lr{lr}_bs{batch_size}.pdf", bbox_inches='tight', pad_inches=0)
     plt.show()
 
 
@@ -759,7 +759,7 @@ def plot_steering(step: int, lr: float, batch_size: int, n_targets: int = 50, k:
     ax.legend(title="Model")
     fig.suptitle("Steerability: steering prog_in to reverse random inputs", fontsize=18)
     fig.tight_layout()
-    fig.savefig(_data_dir.parent / "plots" / f"steering_step{step}_lr{lr}_bs{batch_size}_k{k}.pdf")
+    fig.savefig(_data_dir.parent / "plots" / f"steering_step{step}_lr{lr}_bs{batch_size}_k{k}.pdf", bbox_inches='tight', pad_inches=0)
     plt.show()
 
 
@@ -852,7 +852,7 @@ def plot_steering_all(step: int, lr: float, batch_size: int, n_targets: int = 50
             ax.legend_.remove()
 
     fig.tight_layout()
-    fig.savefig(_data_dir.parent / "plots" / f"steering_all_step{step}_lr{lr}_bs{batch_size}.pdf")
+    fig.savefig(_data_dir.parent / "plots" / f"steering_all_step{step}_lr{lr}_bs{batch_size}.pdf", bbox_inches='tight', pad_inches=0)
     plt.show()
 
 
