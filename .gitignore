@@ -8,4 +8,5 @@ build/
 .DS_Store
 .hypothesis/
 experiments/reverse/data/
+checkpoints/
 paper/
