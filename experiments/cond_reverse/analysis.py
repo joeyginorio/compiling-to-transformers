@@ -16,9 +16,9 @@ from sklearn.decomposition import PCA as SklearnPCA  # type: ignore
 from sklearn.linear_model import LogisticRegression  # type: ignore
 from sklearn.model_selection import train_test_split  # type: ignore
 from torch.utils.data import DataLoader
-from experiments.reverse.models import ModelD, ModelT, ModelI, ModelU
-from experiments.reverse.dataset import datasets, decode, encode, SEQ_LEN
-from experiments.reverse.learning import evaluate, _seeds, DEVICE
+from experiments.cond_reverse.models import ModelD, ModelT, ModelI, ModelU
+from experiments.cond_reverse.dataset import datasets, decode, encode, SEQ_LEN
+from experiments.cond_reverse.learning import evaluate, _seeds, DEVICE
 
 # -- Globals ---
 
@@ -50,8 +50,9 @@ sns.set_theme(style="white",
                 "xtick.labelsize": 12,
                 "ytick.labelsize": 10})
 
-_data_dir = Path("experiments/reverse/data/learning")
+_data_dir = Path("experiments/cond_reverse/data/learning")
 models = ["modeld", "modelu", "modelt", "modeli"]
+
 
 
 # --- Behavioral Dynamics ---
@@ -229,7 +230,8 @@ def pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
 def plot_pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
              positions: list[int], rep: str = "r1",
              ablate: dict[str, bool] | None = None,
-             target: bool = True) -> None:
+             target: bool = True,
+             show_chars: list[str] | None = ["a", "b", "c", "d", "e"]) -> None:
     result = pca(model, step, lr, batch_size, seed, positions=positions, ablate=ablate)
     fitted, matrix = result[rep]
 
@@ -244,10 +246,15 @@ def plot_pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
     input_tokens = all_tokens[:, [p - SEQ_LEN for p in positions]].numpy().reshape(N * n_pos)
     input_chars = np.array([decode[t] for t in input_tokens])
 
+    vowel_ids = [encode[c] for c in "aeiou"]
+    is_vowel = np.isin(all_tokens[:, 0].numpy(), vowel_ids)
+    branch = np.repeat(np.where(is_vowel, "reverse", "identity"), n_pos)
+
     df = pd.DataFrame(projected, columns=["PC1", "PC2"])  # type: ignore
     df["target"] = target_chars
     df["input"] = input_chars
     df["Position"] = pos_array
+    df["branch"] = branch
 
     var = fitted.explained_variance_ratio_
     model_key = model.__class__.__name__[-1].upper()
@@ -266,9 +273,19 @@ def plot_pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
 
     # top: colored by target or input token
     hue_col = "target" if target else "input"
-    sns.scatterplot(data=df, x="PC1", y="PC2", hue=hue_col,
-                    palette="turbo", alpha=0.5, s=10, ax=ax1, legend=False)
-    for char, group in df.groupby(hue_col):
+    plot_df = df if show_chars is None else df.loc[df[hue_col].isin(show_chars)]
+    id_df = plot_df[plot_df["branch"] == "identity"]
+    rev_df = plot_df[plot_df["branch"] == "reverse"]
+    char_order = sorted(plot_df[hue_col].unique())
+    pos_order = sorted(plot_df["Position"].unique())
+    sns.scatterplot(data=id_df, x="PC1", y="PC2", hue=hue_col, hue_order=char_order,  # type: ignore[arg-type]
+                    palette="turbo", alpha=0.5, s=20, marker="o",
+                    edgecolor="none", ax=ax1, legend=False)
+    sns.scatterplot(data=rev_df, x="PC1", y="PC2", hue=hue_col, hue_order=char_order,  # type: ignore[arg-type]
+                    palette="turbo", alpha=0.5, s=70, marker="X",
+                    edgecolor="black", linewidth=0.3, ax=ax1, legend=False)
+    for key, group in plot_df.groupby([hue_col, "branch"]):
+        char = key[0]  # type: ignore[index]
         cx, cy = float(group["PC1"].mean()), float(group["PC2"].mean())
         ax1.text(cx, cy, str(char), fontsize=11, fontweight="bold", ha="center", va="center",
                  bbox=dict(facecolor="white", edgecolor="none", pad=1.5,
@@ -278,8 +295,12 @@ def plot_pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
     ax1.set_ylabel(f"PC2 ({var[1]:.1%})")
 
     # bottom: colored by position
-    sns.scatterplot(data=df, x="PC1", y="PC2", hue="Position",
-                    palette="turbo", alpha=0.5, s=10, ax=ax2)
+    sns.scatterplot(data=id_df, x="PC1", y="PC2", hue="Position", hue_order=pos_order,  # type: ignore[arg-type]
+                    palette="turbo", alpha=0.5, s=20, marker="o",
+                    edgecolor="none", ax=ax2, legend=False)
+    sns.scatterplot(data=rev_df, x="PC1", y="PC2", hue="Position", hue_order=pos_order,  # type: ignore[arg-type]
+                    palette="turbo", alpha=0.5, s=70, marker="X",
+                    edgecolor="black", linewidth=0.3, ax=ax2)
     ax2.set_aspect("equal")
     ax2.set_xlabel(f"PC1 ({var[0]:.1%})")
     ax2.set_ylabel(f"PC2 ({var[1]:.1%})")
@@ -293,7 +314,8 @@ def plot_pca(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
 def plot_pca_3d(model: nn.Module, step: int, lr: float, batch_size: int, seed: int,
                 positions: list[int], rep: str = "r1",
                 ablate: dict[str, bool] | None = None,
-                target: bool = True) -> None:
+                target: bool = True,
+                show_chars: list[str] | None = ["a", "b", "c", "d", "e"]) -> None:
     result = pca(model, step, lr, batch_size, seed, positions=positions, ablate=ablate)
     fitted, matrix = result[rep]
 
@@ -308,6 +330,10 @@ def plot_pca_3d(model: nn.Module, step: int, lr: float, batch_size: int, seed: i
     input_tokens = all_tokens[:, [p - SEQ_LEN for p in positions]].numpy().reshape(N * n_pos)
     input_chars = np.array([decode[t] for t in input_tokens])
 
+    vowel_ids = [encode[c] for c in "aeiou"]
+    is_vowel = np.isin(all_tokens[:, 0].numpy(), vowel_ids)
+    branch = np.repeat(np.where(is_vowel, "reverse", "identity"), n_pos)
+
     var = fitted.explained_variance_ratio_
     model_key = model.__class__.__name__[-1].upper()
     hue_col = "target" if target else "input"
@@ -316,6 +342,7 @@ def plot_pca_3d(model: nn.Module, step: int, lr: float, batch_size: int, seed: i
     df["target"] = target_chars
     df["input"] = input_chars
     df["Position"] = pos_array.astype(str)
+    df["branch"] = branch
 
     axis_labels = {
         "PC1": f"PC1 ({var[0]:.1%})",
@@ -323,13 +350,19 @@ def plot_pca_3d(model: nn.Module, step: int, lr: float, batch_size: int, seed: i
         "PC3": f"PC3 ({var[2]:.1%})",
     }
 
+    symbol_map = {"identity": "circle", "reverse": "diamond"}
+
+    plot_df = df if show_chars is None else df.loc[df[hue_col].isin(show_chars)]
+
     fig = make_subplots(rows=1, cols=2, specs=[[{"type": "scatter3d"}, {"type": "scatter3d"}]],
                         subplot_titles=[hue_col.capitalize(), "Position"])
 
-    for trace in px.scatter_3d(df, x="PC1", y="PC2", z="PC3", color=hue_col, opacity=0.5).data:
+    for trace in px.scatter_3d(plot_df, x="PC1", y="PC2", z="PC3", color=hue_col,
+                               symbol="branch", symbol_map=symbol_map, opacity=0.5).data:
         fig.add_trace(trace, row=1, col=1)
 
-    for trace in px.scatter_3d(df, x="PC1", y="PC2", z="PC3", color="Position", opacity=0.5).data:
+    for trace in px.scatter_3d(plot_df, x="PC1", y="PC2", z="PC3", color="Position",
+                               symbol="branch", symbol_map=symbol_map, opacity=0.5).data:
         fig.add_trace(trace, row=1, col=2)
 
     fig.update_layout(title=f"Model {model_key} — {rep}",
@@ -341,7 +374,8 @@ def plot_pca_3d(model: nn.Module, step: int, lr: float, batch_size: int, seed: i
 def plot_pca_all(models_list: list[nn.Module], step: int, lr: float, batch_size: int, seed: int,
                  positions: list[int], rep: str = "r1",
                  ablate: dict[str, bool] | None = None,
-                 target: bool = True) -> None:
+                 target: bool = True,
+                 show_chars: list[str] | None = ["a", "b", "c", "d", "e"]) -> None:
     plt.rcParams.update({
         'font.size': 12,
         'axes.titlesize': 38,
@@ -367,15 +401,20 @@ def plot_pca_all(models_list: list[nn.Module], step: int, lr: float, batch_size:
         all_tokens = torch.stack([datasets["probe"][i][0] for i in range(len(datasets["probe"]))])
         target_tokens = all_tokens[:, [p + 1 for p in positions]].numpy().reshape(N * n_pos)
         target_chars = np.array([decode[t] for t in target_tokens])
-        
+
         # In case you want to probe input token
         input_tokens = all_tokens[:, [p - SEQ_LEN for p in positions]].numpy().reshape(N * n_pos)
         input_chars = np.array([decode[t] for t in input_tokens])
+
+        vowel_ids = [encode[c] for c in "aeiou"]
+        is_vowel = np.isin(all_tokens[:, 0].numpy(), vowel_ids)
+        branch = np.repeat(np.where(is_vowel, "reverse", "identity"), n_pos)
 
         df = pd.DataFrame(projected, columns=["PC1", "PC2"])  # type: ignore
         df["target"] = target_chars
         df["input"] = input_chars
         df["Position"] = pos_array
+        df["branch"] = branch
 
         var = fitted.explained_variance_ratio_
         model_key = model.__class__.__name__[-1].upper()
@@ -386,9 +425,19 @@ def plot_pca_all(models_list: list[nn.Module], step: int, lr: float, batch_size:
 
         # top: colored by target or input token
         hue_col = "target" if target else "input"
-        sns.scatterplot(data=df, x="PC1", y="PC2", hue=hue_col,
-                        palette="turbo", alpha=0.5, s=10, ax=ax1, legend=False, rasterized=True)
-        for char, group in df.groupby(hue_col):
+        plot_df = df if show_chars is None else df.loc[df[hue_col].isin(show_chars)]
+        id_df = plot_df[plot_df["branch"] == "identity"]
+        rev_df = plot_df[plot_df["branch"] == "reverse"]
+        char_order = sorted(plot_df[hue_col].unique())
+        pos_order = sorted(plot_df["Position"].unique())
+        sns.scatterplot(data=id_df, x="PC1", y="PC2", hue=hue_col, hue_order=char_order,  # type: ignore[arg-type]
+                        palette="turbo", alpha=0.5, s=20, marker="o",
+                        edgecolor="none", ax=ax1, legend=False, rasterized=True)
+        sns.scatterplot(data=rev_df, x="PC1", y="PC2", hue=hue_col, hue_order=char_order,  # type: ignore[arg-type]
+                        palette="turbo", alpha=0.5, s=70, marker="X",
+                        edgecolor="black", linewidth=0.3, ax=ax1, legend=False, rasterized=True)
+        for key, group in plot_df.groupby([hue_col, "branch"]):
+            char = key[0]  # type: ignore[index]
             cx, cy = float(group["PC1"].mean()), float(group["PC2"].mean())
             ax1.text(cx, cy, str(char), fontsize=22, fontweight="bold", ha="center", va="center",
                      bbox=dict(facecolor="white", edgecolor="none", pad=1.5,
@@ -399,11 +448,15 @@ def plot_pca_all(models_list: list[nn.Module], step: int, lr: float, batch_size:
         ax1.set_ylabel("")
 
         # bottom: colored by position
-        sns.scatterplot(data=df, x="PC1", y="PC2", hue="Position",
-                        palette="turbo", alpha=0.5, s=10, ax=ax2, rasterized=True)
+        sns.scatterplot(data=id_df, x="PC1", y="PC2", hue="Position", hue_order=pos_order,  # type: ignore[arg-type]
+                        palette="turbo", alpha=0.5, s=20, marker="o",
+                        edgecolor="none", ax=ax2, legend=False, rasterized=True)
+        sns.scatterplot(data=rev_df, x="PC1", y="PC2", hue="Position", hue_order=pos_order,  # type: ignore[arg-type]
+                        palette="turbo", alpha=0.5, s=70, marker="X",
+                        edgecolor="black", linewidth=0.3, ax=ax2, rasterized=True)
         ax2.set_anchor("N")
         if col == 0:
-            positions_sorted = sorted(df["Position"].unique())
+            positions_sorted = sorted(plot_df["Position"].unique())
             norm = mcolors.Normalize(vmin=min(positions_sorted), vmax=max(positions_sorted))
             cmap = plt.cm.get_cmap("turbo")
             handles = [mpatches.Patch(color=cmap(norm(p)), alpha=0.8, label=str(p)) for p in positions_sorted]
@@ -419,6 +472,90 @@ def plot_pca_all(models_list: list[nn.Module], step: int, lr: float, batch_size:
     fig.supylabel("PC2", y=0.55, fontsize=plt.rcParams['axes.labelsize'])
     fig.tight_layout()
     # fig.subplots_adjust(wspace=0.4)
+    fig.savefig(_data_dir.parent / "plots" / fname, dpi=600, bbox_inches='tight', pad_inches=0)
+    plt.show()
+
+
+def plot_pca_res(models_list: list[nn.Module], step: int, lr: float, batch_size: int, seed: int,
+                 positions: list[int],
+                 ablate: dict[str, bool] | None = None,
+                 show_chars: list[str] | None = ["a", "b", "c", "d", "e"]) -> None:
+    plt.rcParams.update({
+        'font.size': 12,
+        'axes.titlesize': 38,
+        'axes.labelsize': 34,
+        'figure.labelsize': 32,
+        'xtick.labelsize': 20,
+        'ytick.labelsize': 20,
+        'legend.fontsize': 22,
+        'legend.title_fontsize': 22,
+    })
+    row_configs = [("h1", False), ("r1", False), ("r2", True)]
+    n = len(models_list)
+    fig, axes = plt.subplots(len(row_configs), n, figsize=(4 * n, 4 * len(row_configs)),
+                             squeeze=False, sharex=False, sharey=False)
+
+    for col, model in enumerate(models_list):
+        result = pca(model, step, lr, batch_size, seed, positions=positions, ablate=ablate)
+        model_key = model.__class__.__name__[-1].upper()
+
+        for row, (rep, target) in enumerate(row_configs):
+            fitted, matrix = result[rep]
+            projected = fitted.transform(matrix)[:, :2]
+            n_pos = len(positions)
+            N = len(matrix) // n_pos
+            pos_array = np.tile(positions, N)
+
+            all_tokens = torch.stack([datasets["probe"][i][0] for i in range(len(datasets["probe"]))])
+            target_tokens = all_tokens[:, [p + 1 for p in positions]].numpy().reshape(N * n_pos)
+            target_chars = np.array([decode[t] for t in target_tokens])
+            input_tokens = all_tokens[:, [p - SEQ_LEN for p in positions]].numpy().reshape(N * n_pos)
+            input_chars = np.array([decode[t] for t in input_tokens])
+
+            vowel_ids = [encode[c] for c in "aeiou"]
+            is_vowel = np.isin(all_tokens[:, 0].numpy(), vowel_ids)
+            branch = np.repeat(np.where(is_vowel, "reverse", "identity"), n_pos)
+
+            df = pd.DataFrame(projected, columns=["PC1", "PC2"])  # type: ignore
+            df["target"] = target_chars
+            df["input"] = input_chars
+            df["Position"] = pos_array
+            df["branch"] = branch
+
+            var = fitted.explained_variance_ratio_
+            print(f"Model {model_key} [{rep}]: PC1={var[0]:.1%}, PC2={var[1]:.1%}")
+
+            ax = axes[row, col]
+            if row == 0:
+                ax.set_title(f"{model_key}", color=palette[model_key], fontweight="bold", pad=12)
+
+            hue_col = "target" if target else "input"
+            plot_df = df if show_chars is None else df.loc[df[hue_col].isin(show_chars)]
+            id_df = plot_df[plot_df["branch"] == "identity"]
+            rev_df = plot_df[plot_df["branch"] == "reverse"]
+            char_order = sorted(plot_df[hue_col].unique())
+            sns.scatterplot(data=id_df, x="PC1", y="PC2", hue=hue_col, hue_order=char_order,  # type: ignore[arg-type]
+                            palette="turbo", alpha=0.5, s=20, marker="o",
+                            edgecolor="none", ax=ax, legend=False, rasterized=True)
+            sns.scatterplot(data=rev_df, x="PC1", y="PC2", hue=hue_col, hue_order=char_order,  # type: ignore[arg-type]
+                            palette="turbo", alpha=0.5, s=70, marker="X",
+                            edgecolor="black", linewidth=0.3, ax=ax, legend=False, rasterized=True)
+            for key, group in plot_df.groupby([hue_col, "branch"]):
+                char = key[0]  # type: ignore[index]
+                cx, cy = float(group["PC1"].mean()), float(group["PC2"].mean())
+                ax.text(cx, cy, str(char), fontsize=22, fontweight="bold", ha="center", va="center",
+                        bbox=dict(facecolor="white", edgecolor="none", pad=1.5,
+                                  alpha=0.15, boxstyle="circle,pad=0.15"))
+            ax.set_anchor("N")
+            ax.set_xlabel("")
+            if rep == 'h1':
+                rep = 'A'
+            ax.set_ylabel(f"{rep.upper()}" if col == 0 else "")
+
+    fname = f"pca_res_step{step}_lr{lr}_bs{batch_size}_seed{seed}.pdf"
+    fig.supxlabel("PC1", x=0.56, y=-.002,fontsize=plt.rcParams['axes.labelsize'])
+    fig.supylabel("PC2", y=0.522, x=-.005,fontsize=plt.rcParams['axes.labelsize'])
+    fig.tight_layout()
     fig.savefig(_data_dir.parent / "plots" / fname, dpi=600, bbox_inches='tight', pad_inches=0)
     plt.show()
 
@@ -649,7 +786,7 @@ def plot_probe_all(models_list: list[nn.Module], lr: float, batch_size: int, rep
         'ytick.labelsize': 24,
         'legend.fontsize': 24,
     })
-    markers = {"D": "o", "U": "s", "T": "^", "I": "D"}
+    markers = {"D": "o", "U": "s", "T": "X", "I": "D"}
     n = len(models_list)
     fig, axes = plt.subplots(1, n, figsize=(5 * n, 4.5), sharey=True)
     task_col = "test_task_accuracy" if test else "task_accuracy"
@@ -828,7 +965,7 @@ def plot_steering_all(step: int, lr: float, batch_size: int, n_targets: int = 50
     df = pd.DataFrame(rows)
     fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), sharey=True)
 
-    markers = {"D": "o", "U": "s", "T": "^"}
+    markers = {"D": "o", "U": "s", "T": "X"}
     for col, k in enumerate(ks):
         ax = axes[col]
         for model_label in ["D", "U", "T"]:
@@ -873,3 +1010,4 @@ def prop_correct(lr: float, batch_size: int) -> pd.DataFrame:
             result["model"] = model_name[-1].upper()
             rows.append(result)
     return pd.concat(rows, ignore_index=True)
+

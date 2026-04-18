@@ -4,8 +4,8 @@ import csv
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from experiments.reverse.dataset import datasets, tokenize, SEQ_LEN
-from experiments.reverse.models import ModelI, ModelD, interpret_out
+from experiments.cond_reverse.dataset import datasets, tokenize, SEQ_LEN
+from experiments.cond_reverse.models import ModelI, ModelD, interpret_out
 
 
 # --- Globals ---
@@ -17,7 +17,7 @@ elif torch.cuda.is_available():
 else:
     DEVICE = torch.device("cpu")
 
-_data_dir = Path("experiments/reverse/data/learning")
+_data_dir = Path("experiments/cond_reverse/data/learning")
 
 
 # --- Measurements ---

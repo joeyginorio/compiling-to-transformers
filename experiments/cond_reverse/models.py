@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from experiments.reverse.dataset import decode, SEQ_LEN
+from experiments.cond_reverse.dataset import decode, SEQ_LEN
 import cajal.compiling as cj
 from cajal.typing import check
 from cajal.syntax import TmProd, TmProj, TmVar, TySum, TyUnit, TyProd, TmDict, TmLet, TmLookup, TmInj, TmUnit
