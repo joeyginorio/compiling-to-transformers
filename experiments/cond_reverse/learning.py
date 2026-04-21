@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from experiments.cond_reverse.dataset import datasets, tokenize, SEQ_LEN
-from experiments.cond_reverse.models import ModelI, ModelD, interpret_out
+from experiments.cond_reverse.models import ModelI, ModelF, interpret_out
 
 
 # --- Globals ---
@@ -123,6 +123,7 @@ def run(models: list[type[nn.Module]], seeds: list[int] = _seeds, lrs: list[floa
                     print(f"\n{'='*40}")
                     print(f"  {model.__name__}  seed={seed}  lr={lr}  bs={batch_size}")
                     print(f"{'='*40}")
+                    torch.manual_seed(seed)
                     train(model(), measure, epochs=epochs, batch_size=batch_size, lr=lr, seed=seed)
         measure.save()
         measures.append(measure)

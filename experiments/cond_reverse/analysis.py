@@ -16,7 +16,7 @@ from sklearn.decomposition import PCA as SklearnPCA  # type: ignore
 from sklearn.linear_model import LogisticRegression  # type: ignore
 from sklearn.model_selection import train_test_split  # type: ignore
 from torch.utils.data import DataLoader
-from experiments.cond_reverse.models import ModelD, ModelT, ModelI, ModelU
+from experiments.cond_reverse.models import ModelF, ModelT, ModelI, ModelP
 from experiments.cond_reverse.dataset import datasets, decode, encode, SEQ_LEN
 from experiments.cond_reverse.learning import evaluate, _seeds, DEVICE
 
@@ -34,13 +34,13 @@ purple = (0.82, 0.42, 0.05)
 green  = (0.02, 0.48, 0.50)
 
 palette = {
-    "D": bmidnight,
-    "U": purple,
+    "F": bmidnight,
+    "P": purple,
     "T": green,
     "I": bcayenne,
 }
 
-hue_order = ["D", "U", "T", "I"]
+hue_order = ["F", "P", "T", "I"]
 
 sns.set_theme(style="white",
               font="Futura",
@@ -51,12 +51,12 @@ sns.set_theme(style="white",
                 "ytick.labelsize": 10})
 
 _data_dir = Path("experiments/cond_reverse/data/learning")
-models = ["modeld", "modelu", "modelt", "modeli"]
+models = ["modelf", "modelp", "modelt", "modeli"]
 
 
 
 # --- Behavioral Dynamics ---
-_model_cls = {"modeld": ModelD, "modelu": ModelU, "modelt": ModelT, "modeli": ModelI}
+_model_cls = {"modelf": ModelF, "modelp": ModelP, "modelt": ModelT, "modeli": ModelI}
 
 
 def add_test_loss(lr: float, batch_size: int, max_step: int = 800) -> None:
@@ -159,7 +159,7 @@ def plot_behavioral_dynamics(lr: float | None = None, batch_size: int | None = N
         ax_hm.set_ylabel(f"{model_label}\no–a", color=palette[model_label], fontweight="bold")
         ax_hm.tick_params(labelbottom=False)
 
-    linestyles = {"D": (1, 0), "U": (5, 2), "T": (1, 2), "I": (5, 2, 1, 2)}
+    linestyles = {"F": (1, 0), "P": (5, 2), "T": (1, 2), "I": (5, 2, 1, 2)}
 
     # Train loss
     sns.lineplot(data=data, x="step", y="train_loss", hue="model", style="model",
@@ -176,7 +176,7 @@ def plot_behavioral_dynamics(lr: float | None = None, batch_size: int | None = N
                  palette=palette, hue_order=hue_order, style_order=hue_order,
                  dashes=linestyles, ax=ax_val, errorbar="sd", linewidth=3.5)
     ax_val.set_xlabel("Step", labelpad=20)
-    ax_val.set_ylim(bottom=-0.05)
+    ax_val.set_ylim(-0.05, 3)
     ax_val.set_ylabel("Test" if test else "Val")
     ax_val.legend_.remove() if ax_val.legend_ else None
 
@@ -490,7 +490,7 @@ def plot_pca_res(models_list: list[nn.Module], step: int, lr: float, batch_size:
         'legend.fontsize': 22,
         'legend.title_fontsize': 22,
     })
-    row_configs = [("h1", False), ("r1", False), ("r2", True)]
+    row_configs = [("r1", False), ("h1", True), ("r2", True)]
     n = len(models_list)
     fig, axes = plt.subplots(len(row_configs), n, figsize=(4 * n, 4 * len(row_configs)),
                              squeeze=False, sharex=False, sharey=False)
@@ -573,13 +573,13 @@ def plot_ablations(step: int, lr: float, batch_size: int, test: bool = False) ->
         'legend.title_fontsize': 22,
     })
     model_configs: list[tuple[str, nn.Module, list[tuple[str, dict[str, bool]]]]] = [
-        ("D", ModelD(), [
+        ("F", ModelF(), [
             ("_",   {'h1': False, 'prog_out': False}),
             ("A",   {'h1': True,  'prog_out': False}),
             ("R",   {'h1': False, 'prog_out': True}),
             ("A+R", {'h1': True,  'prog_out': True}),
         ]),
-        ("U", ModelU(), [
+        ("P", ModelP(), [
             ("_",   {'h1': False, 'prog_out': False}),
             ("A",   {'h1': True,  'prog_out': False}),
             ("R",   {'h1': False, 'prog_out': True}),
@@ -623,7 +623,7 @@ def plot_ablations(step: int, lr: float, batch_size: int, test: bool = False) ->
     df = pd.DataFrame(rows)
 
     fig, ax = plt.subplots(figsize=(8, 6))
-    hatches = {"D": "", "U": "/", "T": "--", "I": "||"}
+    hatches = {"F": "", "P": "/", "T": "--", "I": "||"}
     sns.barplot(data=df, x="condition", y="accuracy", hue="model",
                 order=all_conditions, hue_order=hue_order,
                 palette=palette, errorbar="sd", capsize=0.4, ax=ax, width=0.65,
@@ -704,10 +704,10 @@ def train_probes(model: nn.Module, lr: float, batch_size: int, steps: list[int] 
 
 
 def add_test_task_accuracy(lr: float, batch_size: int, rep: str = "prog_in") -> None:
-    """Compute test task accuracy from saved checkpoints and write it into the probe CSV for models D, T, U."""
+    """Compute test task accuracy from saved checkpoints and write it into the probe CSV for models F, T, P."""
     test_loader = DataLoader(datasets["test"], batch_size=1024)
 
-    for model_name, model_cls in [("modeld", ModelD), ("modelt", ModelT), ("modelu", ModelU)]:
+    for model_name, model_cls in [("modelf", ModelF), ("modelt", ModelT), ("modelp", ModelP)]:
         csv_path = _data_dir / "probes" / f"probe_{model_name}_{rep}_lr{lr}_bs{batch_size}.csv"
         df = pd.read_csv(csv_path)
         steps: list[int] = [int(s) for s in df["step"].unique()]
@@ -786,7 +786,7 @@ def plot_probe_all(models_list: list[nn.Module], lr: float, batch_size: int, rep
         'ytick.labelsize': 24,
         'legend.fontsize': 24,
     })
-    markers = {"D": "o", "U": "s", "T": "X", "I": "D"}
+    markers = {"F": "o", "P": "s", "T": "X", "I": "D"}
     n = len(models_list)
     fig, axes = plt.subplots(1, n, figsize=(5 * n, 4.5), sharey=True)
     task_col = "test_task_accuracy" if test else "task_accuracy"
@@ -835,7 +835,7 @@ def plot_probe_all(models_list: list[nn.Module], lr: float, batch_size: int, rep
 # --- Steering ---
 
 def plot_steering(step: int, lr: float, batch_size: int, n_targets: int = 50, k: int = 1, test: bool = False) -> None:
-    """Plot steerability vs alpha for Models D, U, T.
+    """Plot steerability vs alpha for Models F, P, T.
 
     For each alpha, steers all prog_in positions simultaneously toward a random
     input string s and measures the fraction of output positions where the target
@@ -844,7 +844,7 @@ def plot_steering(step: int, lr: float, batch_size: int, n_targets: int = 50, k:
     """
     import random as _random
 
-    model_configs = [("D", ModelD()), ("U", ModelU()), ("T", ModelT())]
+    model_configs = [("F", ModelF()), ("P", ModelP()), ("T", ModelT())]
     alphas = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
     letters = [decode[i] for i in range(26)]
 
@@ -887,8 +887,8 @@ def plot_steering(step: int, lr: float, batch_size: int, n_targets: int = 50, k:
     df = pd.DataFrame(rows)
     fig, ax = plt.subplots(figsize=(7, 4))
     sns.lineplot(data=df, x="alpha", y="steerability", hue="model",
-                 palette={m: palette[m] for m in ["D", "U", "T"]},
-                 hue_order=["D", "U", "T"],
+                 palette={m: palette[m] for m in ["F", "P", "T"]},
+                 hue_order=["F", "P", "T"],
                  errorbar="sd", marker="o", ax=ax)
 
     ax.set_xlabel("α")
@@ -916,7 +916,7 @@ def plot_steering_all(step: int, lr: float, batch_size: int, n_targets: int = 50
     })
     import random as _random
 
-    model_configs = [("D", ModelD()), ("U", ModelU()), ("T", ModelT())]
+    model_configs = [("F", ModelF()), ("P", ModelP()), ("T", ModelT())]
     alphas = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
     ks = [1, 2, 3]
     letters = [decode[i] for i in range(26)]
@@ -965,10 +965,10 @@ def plot_steering_all(step: int, lr: float, batch_size: int, n_targets: int = 50
     df = pd.DataFrame(rows)
     fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), sharey=True)
 
-    markers = {"D": "o", "U": "s", "T": "X"}
+    markers = {"F": "o", "P": "s", "T": "X"}
     for col, k in enumerate(ks):
         ax = axes[col]
-        for model_label in ["D", "U", "T"]:
+        for model_label in ["F", "P", "T"]:
             subset = pd.DataFrame(df[(df["k"] == k) & (df["model"] == model_label)])
             sns.lineplot(data=subset,
                          x="alpha", y="steerability",
