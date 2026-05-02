@@ -52,7 +52,7 @@ class Measure:
                                  "outputs": outputs})
             print(f"step {step:5d}  train {train_loss:.4f}  val {val_loss:.4f}")
 
-        if step % (self._every * 5) == 0:
+        if step % (self._every) == 0:
             self.checkpoints.append({
                 "step": step,
                 "seed": seed,
@@ -103,6 +103,8 @@ def train(model: nn.Module, measure: Measure, epochs: int = 10, batch_size: int 
             loss.backward()
             optimizer.step()
             measure.record(model, train_loader, val_loader, step=step, seed=seed, lr=lr, batch_size=batch_size)
+            if step == 1000:
+                measure._every = 1000
             step += 1
 
     return measure
@@ -113,7 +115,7 @@ _lrs = [1e-2, 1e-3, 1e-4]
 _bs = [32, 64, 128]
 
 def run(models: list[type[nn.Module]], seeds: list[int] = _seeds, lrs: list[float] = _lrs,
-        batch_sizes: list[int] = _bs, epochs: int = 8) -> list[Measure]:
+        batch_sizes: list[int] = _bs, epochs: int = 8, every: int = 10) -> list[Measure]:
     measures = []
     for model in models:
         measure = Measure(model_name=model.__name__.lower())
@@ -124,6 +126,7 @@ def run(models: list[type[nn.Module]], seeds: list[int] = _seeds, lrs: list[floa
                     print(f"  {model.__name__}  seed={seed}  lr={lr}  bs={batch_size}")
                     print(f"{'='*40}")
                     torch.manual_seed(seed)
+                    measure._every = every
                     train(model(), measure, epochs=epochs, batch_size=batch_size, lr=lr, seed=seed)
         measure.save()
         measures.append(measure)

@@ -37,6 +37,22 @@ class ReverseDataset(Dataset):
         toks = self.tokens[idx]
         return toks[:-1], toks[1:]
 
+def generate_example_fixed(rng: random.Random, transform, first_pool: list[str]) -> str:
+    first = rng.choice(first_pool)
+    rest = rng.choices(LETTERS, k=SEQ_LEN - 1)
+    chars = [first] + rest
+    output = transform(chars)
+    return " ".join(chars + [SEP] + output)
+
+def generate_datasets_balanced(out_dir: Path = Path("experiments/cond_reverse/data/dataset")) -> None:
+    rng = random.Random(SEED)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    consonants = [c for c in LETTERS if c not in VOWELS]
+    vowels = [c for c in LETTERS if c in VOWELS]
+    identity = [generate_example_fixed(rng, lambda cs: cs, consonants) for _ in range(2500)]
+    reverse = [generate_example_fixed(rng, lambda cs: cs[::-1], vowels) for _ in range(2500)]
+    (out_dir / "steer.txt").write_text("\n".join(reverse + identity) + "\n")
+
 def generate_datasets(save=False, out_dir: Path = Path("experiments/cond_reverse/data/dataset")) -> dict[str, ReverseDataset]:
     rng = random.Random(SEED)
     splits = {"train": 10_000, "probe": 5_000, "val": 1_000, "test": 1_000}

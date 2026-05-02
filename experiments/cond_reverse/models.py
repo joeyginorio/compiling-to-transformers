@@ -79,11 +79,10 @@ class ModelF(nn.Module):
     def forward(self, x: torch.Tensor,
                 representations: bool = False,
                 ablate: dict[str, bool] = {'h1': False, 'prog_out': False},
-                steer: dict[int, torch.Tensor] | None = None) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
+                steer: dict[int, tuple[float, float]] | None = None) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
         x1 = self.tok_emb(x) + self.pos_emb(self.positions)
         
         r1 = self.mlp(x1) + x1
-
 
         h11, _ = self.attn1(r1, r1, r1, attn_mask=self.mask, is_causal=True, need_weights=False)
         h12, _ = self.attn2(r1, r1, r1, attn_mask=self.mask, is_causal=True, need_weights=False)
@@ -93,17 +92,19 @@ class ModelF(nn.Module):
             h1 = torch.roll(h1, shifts=1, dims=0)
 
         prog_in = self.prog_proj_in(r1[:, :SEQ_LEN, :])
+        prog_in_sel = prog_in.clone()
         if steer is not None:
-            for pos, vec in steer.items():
-                prog_in[:, pos, :] = prog_in[:, pos, :] + vec
-        prog_out = torch.vmap(self.prog)({'xs1': prog_in.flatten(start_dim=1),
+            for pos, (alpha, beta) in steer.items():
+                prog_in_sel[:, pos, 0]  = prog_in_sel[:, pos, 0]  * alpha
+                prog_in_sel[:, pos, 1:] = prog_in_sel[:, pos, 1:] * beta
+        prog_out = torch.vmap(self.prog)({'xs1': prog_in_sel.flatten(start_dim=1),
                                           'xs2': prog_in.flatten(start_dim=1)}).reshape(prog_in.shape)
         if ablate['prog_out']:
             prog_out = torch.roll(prog_out, shifts=1, dims=0)
         prog_out_padded = torch.cat([torch.zeros_like(prog_out), prog_out], dim=1)
 
         r2 = self.merge(torch.cat([h1, prog_out_padded], dim=-1)) + r1
-        
+
         logits = self.out(r2)
 
         if representations:
@@ -138,7 +139,7 @@ class ModelP(nn.Module):
     def forward(self, x: torch.Tensor,
                 representations: bool = False,
                 ablate: dict[str, bool] = {'h1': False, 'prog_out': False},
-                steer: dict[int, torch.Tensor] | None = None) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
+                steer: dict[int, tuple[float, float]] | None = None) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
         x1 = self.tok_emb(x) + self.pos_emb(self.positions)
         
         r1 = self.mlp(x1) + x1
@@ -152,8 +153,9 @@ class ModelP(nn.Module):
 
         prog_in = self.prog_proj_in(r1[:, :SEQ_LEN, :])
         if steer is not None:
-            for pos, vec in steer.items():
-                prog_in[:, pos, :] = prog_in[:, pos, :] + vec
+            for pos, (alpha, beta) in steer.items():
+                prog_in[:, pos, 0]  = prog_in[:, pos, 0]  * alpha
+                prog_in[:, pos, 1:] = prog_in[:, pos, 1:] * beta
         prog_out = torch.vmap(self.prog)({'x': prog_in.flatten(start_dim=1)}).reshape(prog_in.shape)
         if ablate['prog_out']:
             prog_out = torch.roll(prog_out, shifts=1, dims=0)
@@ -196,7 +198,7 @@ class ModelT(nn.Module):
     def forward(self, x: torch.Tensor,
                 representations: bool = False,
                 ablate: dict[str, bool] = {'h1': False, 'prog_out': False},
-                steer: dict[int, torch.Tensor] | None = None) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
+                steer: dict[int, tuple[float, float]] | None = None) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
         x1 = self.tok_emb(x) + self.pos_emb(self.positions)
         
         r1 = self.mlp(x1) + x1
@@ -210,17 +212,19 @@ class ModelT(nn.Module):
             h1 = torch.roll(h1, shifts=1, dims=0)
 
         prog_in = self.prog_proj_in(r1[:, :SEQ_LEN, :])
+        prog_in_sel = prog_in.clone()
         if steer is not None:
-            for pos, vec in steer.items():
-                prog_in[:, pos, :] = prog_in[:, pos, :] + vec
-        prog_out = torch.vmap(self.prog)({'xs1': prog_in.flatten(start_dim=1),
+            for pos, (alpha, beta) in steer.items():
+                prog_in_sel[:, pos, 0]  = prog_in_sel[:, pos, 0]  * alpha
+                prog_in_sel[:, pos, 1:] = prog_in_sel[:, pos, 1:] * beta
+        prog_out = torch.vmap(self.prog)({'xs1': prog_in_sel.flatten(start_dim=1),
                                           'xs2': prog_in.flatten(start_dim=1)}).reshape(prog_in.shape)
         if ablate['prog_out']:
             prog_out = torch.roll(prog_out, shifts=1, dims=0)
         prog_out_padded = torch.cat([torch.zeros_like(prog_out), prog_out], dim=1)
 
         r2 = self.merge(torch.cat([h1, prog_out_padded], dim=-1)) + r1
-        
+
         logits = self.out(r2)
 
         if representations:
