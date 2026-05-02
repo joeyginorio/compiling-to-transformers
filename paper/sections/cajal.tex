@@ -1,0 +1,370 @@
+\section{Defining $\cj$}
+\label{sec:cajal}
+
+% Programs have behavior
+% Compiler preserves program behavior
+% Programs compile to k-linear maps
+
+\subsection{Syntax and Evaluation}
+
+$\cj$\! is a linearly typed programming language. Fig. \ref{fig:syntax}
+details its syntax, similar to a lambda calculus with sum and product types \citep{walker2005substructural}. 
+The main differences are the absence of higher-order functions,\footnote{Adding higher-order functions is possible, but not
+not necessary for the applications shown in this paper.} 
+and the inclusion of dictionaries and 
+nondeterministic choice.
+
+% Syntax
+\begin{figure}[ht]
+  \begin{mdframed}[topline=false,innertopmargin=-1.19ex,innerleftmargin=-0.1ex,innerrightmargin=0ex,linewidth=.8pt,skipbelow=2ex]
+    \rulediv{18pt}{\large \t{Syntax}}
+    \vspace{.1em}
+    \[
+    \begin{tabular}{c c}
+        \scalebox{.8}{
+        $\begin{aligned}
+           \nb{e} \,\,\,\coloneqq 
+                \ & \ \ \ \nb{x} \in \nb{\t{Var}} &&\t{variable}\\
+                &\mid \unit &&\t{unit}\\
+                &\mid \nb{(e_1,e_2)} &&\t{tuple}\\
+                &\mid \nb{\inj{i}{e}} &&\t{injection}\\
+                &\mid \nb{\dict{e_\t{k}}{e_\t{v}}} &&\t{dictionary}\\
+                &\mid \nb{e_1;e_2} &&\t{sequencing}\\
+                &\mid \nb{\proj{i}{e}} &&\t{projection}\\
+                &\mid \nb{\case{e}{x_1}{e_1}{x_2}{e_2}} &&\t{case analysis}\\
+                &\mid \nb{e_1 \sqcap e_2} &&\t{nondeterminism}\\
+                &\mid \nb{e_1(e_2)_\mathcal{R}} &&\t{lookup}\\
+                &\mid \nb{\letb{x}{e_1}{e_2}} &&\t{let binding}\\[4mm]
+        \end{aligned}$}
+    &
+        $\begin{array}{c}
+        \scalebox{.8}{%                                         
+        $\begin{aligned}                                         
+            \nb{\tau} \,\,\,\coloneqq
+                &\ \ \ \nb{\Unit} &&\t{unit}\\
+                &\mid \nb{\ty_1 \x \ty_2} &&\t{product}\\
+                &\mid \nb{\ty_1 \+ \ty_2} &&\t{sum}\\
+                &\mid \nb{\ty_1 \rightharpoonup \ty_2} &&\t{dictionary}\\
+        \end{aligned}$}                                          
+        \\[13mm]
+        \scalebox{.8}{%     
+        $\begin{aligned}
+            \nb{\D} \,\,\,\coloneqq
+            &\ \ \ \nb{\emp} &&\t{empty}\\
+            &\mid \nb{\D,\bind{x}{\ty}} &&\t{binder}\\
+        \end{aligned}$}           
+        \end{array}$
+
+    \\[15mm]
+    \end{tabular}
+    \]
+  \end{mdframed}
+
+  \caption{Syntax of $\cj$expressions $\nb{e}$, types $\nb{\ty}$, and contexts $\nb{\D}$.}
+  \label{fig:syntax}
+\end{figure}
+
+\paragraph{Atom} The simplest expression in $\cj$\! is $\unit$, which introduces the unit
+type $\nb{\Unit}$. To use $\unit$, we use sequencing. For example, $\unit;\unit$ sequences two $\unit$ together, and just returns the
+second. More generally, for an expression like $\nb{e_1;e_2}$, sequencing evaluates $\nb{e_1}$ and $\nb{e_2}$, then
+returns the value of $\nb{e_2}$. There is a formal specification of this behavior in Fig. \ref{fig:evaluating}, which
+defines how expressions evaluate.
+\footnote{It is an inductively defined relation \citep{pierce2002types}. These are essentially implications.
+If the statement above the line holds, you may conclude the statement below the line.}
+
+
+
+% Evaluating
+\begin{figure}[h]
+  \begin{mdframed}[topline=false,innertopmargin=-1.39ex,innerleftmargin=-0.1ex,innerrightmargin=0ex,linewidth=.8pt,skipbelow=2ex]
+    \rulediv{28pt}{\large \t{Evaluating}}
+    \[  
+      % \SetCell[c=2]{c}
+    \begin{tabular}{c}
+        \scalebox{.86}{
+        $\step {e} {v} \iff \t{expression }\nb{e} \t{ evaluates to }\nb{v}$}
+    \\[5mm]
+        \scalebox{.8}{
+        \def\extraVskip{3pt}
+        \def\defaultHypSeparation{\hskip .05in}
+        \bottomAlignProof
+        \AxiomC{$\step{e}{v}$}
+        \UnaryInfC{$\step{\inj{i}{e}}{\inj{i}{v}}$}
+        \DisplayProof}
+        
+        \quad
+
+        \scalebox{.8}{
+        \def\extraVskip{3pt}
+        \def\defaultHypSeparation{\hskip .05in}
+        \bottomAlignProof
+        \AxiomC{$\step{e_\t{k}}{v_\t{k}}$}
+        \AxiomC{$\step{e_\t{v}}{v_\t{v}}$}
+        \BinaryInfC{$\step{\dict{e_\t{k}}{e_\t{v}}}{\dict{v_\t{k}}{v_\t{v}}}$}
+        \DisplayProof}
+
+        \quad
+
+        \scalebox{.8}{
+        \def\extraVskip{3pt}
+        \def\defaultHypSeparation{\hskip .05in}
+        \bottomAlignProof
+        \AxiomC{$\step{e}{(e_1,e_2)}$}
+        \AxiomC{$\step{e_i}{v_i}$}
+        \BinaryInfC{$\step{\proj{i}{e}}{v_i}$}
+        \DisplayProof}
+
+        \quad
+
+        \scalebox{.8}{
+        \def\extraVskip{3pt}
+        \def\defaultHypSeparation{\hskip .05in}
+        \bottomAlignProof
+        \AxiomC{$\ess{i} \bstep \vsrc{i}$}
+        \UnaryInfC{$\ess1 \sqcap \ess2 \bstep \vsrc{i}$} 
+        \DisplayProof}
+
+    \\[5mm]
+
+        \scalebox{.8}{
+        \def\extraVskip{3pt}
+        \def\defaultHypSeparation{\hskip .05in}
+        \bottomAlignProof
+        \AxiomC{$\step{e_1}{\unit}$}
+        \AxiomC{$\step{e_2}{v_2}$}
+        \BinaryInfC{$\step{e_1;e_2}{v_2}$}
+        \DisplayProof}
+
+        \quad
+
+        \scalebox{.8}{
+        \def\extraVskip{3pt}
+        \def\defaultHypSeparation{\hskip .05in}
+        \bottomAlignProof
+        \AxiomC{$\step {e_1} {v_1}$}
+        \AxiomC{$\step {\{x \map v_1\}(e_2)} {v_2}$}
+        \BinaryInfC{$\step {\letb{x}{e_1}{e_2}} {v_2}$}
+        \DisplayProof}
+
+        \quad
+
+        \scalebox{.8}{
+        \def\extraVskip{3pt}
+        \def\defaultHypSeparation{\hskip .05in}
+        \bottomAlignProof
+        \AxiomC{$\step{e}{\inj{i}{v}}$}
+        \AxiomC{$\step{\{x_i \map v\}(e_i)}{v_i}$}
+        \BinaryInfC{$\step{\case{e}{x_1}{e_1}{x_2}{e_2}}{v_i}$}
+        \DisplayProof}
+
+    \\[5mm]
+
+
+        \scalebox{.8}{
+        \def\extraVskip{3pt}
+        \def\defaultHypSeparation{\hskip .05in}
+        \bottomAlignProof
+        \AxiomC{$\step{e_\t{kv}}{\dict{v_{\t{k}}}{v_\t{v}}}$}
+        \AxiomC{$\step{e_\t{q}}{v_\t{q}}$}
+        \AxiomC{$\nb{\mathcal{V}} = \{\nb{(v_\t{v})_i} \mid (\nb{v_\t{q}},\nb{(v_\t{k})_i}) \in \nb{\mathcal{R}}\}$}
+        \AxiomC{$\text{\Large$\sqcap$}_{\nb{\mathcal{V}}}\,\nb{v}\bstep \vsrc{\t{r}}$}
+        \QuaternaryInfC{$\step{e_\t{kv}(e_\t{q})_\mathcal{R}}{v_\t{r}}$}
+        \DisplayProof}
+
+    \\[3mm]
+
+    \end{tabular}
+    \]
+  \end{mdframed}
+  \caption{Evaluating $\cj$expressions}
+  \label{fig:evaluating}
+\end{figure}
+
+
+
+\paragraph{Character} 
+% Without loss of generality we focus on an alphabet with 4 characters
+% A | B | C | D
+% Vowel | Embed1 | Embed2 | Embed3
+
+On its own $\unit$ is not very exciting. However, $\unit$ becomes powerful when
+paired with other expressions. With injections, $\unit$ can encode characters in an alphabet, and are how we introduce values
+of sum type. For example, the following injections introduce values of type 
+$\nb{\Unit \+ \Unit \+ \Unit \+ \Unit}$, the type of a four letter alphabet $\nb{\t{Char}}$.
+For convenience, we use $\nb{n}$-ary forms of $\cj$\! expressions, which are encodable using their
+binary form.
+
+\[
+\nb{\t{a}} \triangleq\inj{0}{\unit} \quad\quad
+\nb{\t{b}} \triangleq\inj{1}{\unit} \quad\quad
+\nb{\t{c}} \triangleq\inj{2}{\unit} \quad\quad
+\nb{\t{d}} \triangleq\inj{3}{\unit}
+\]
+
+To use expressions of sum type we pattern match, specifying what to do when we match against
+each character. For example, the following pattern match inspects $\nb{e}$, returning $\nb{\t{a}}$ if the
+it is a vowel, and otherwise returning $\nb{\t{d}}$.
+
+\[
+\nb{\t{isVowel}} \!\quad\triangleq\quad\! \nb{\t{case}\,e\,\t{of}\,
+  \begin{cases}
+    \inj{0}{x_0}\Rightarrow \inj{0}{x_0}\\
+    \inj{1}{x_1}\Rightarrow \inj{3}{x_0}\\
+    \inj{2}{x_2}\Rightarrow \inj{3}{x_0}\\
+    \inj{3}{x_3}\Rightarrow \inj{3}{x_0}\\
+  \end{cases}}
+  \simeq\quad
+  \nb{\t{case}\,e\,\t{of}\,
+  \begin{cases}
+    \t{a}\Rightarrow \t{a}\\
+    \t{b}\Rightarrow \t{d}\\
+    \t{c}\Rightarrow \t{d}\\
+    \t{d}\Rightarrow \t{d}
+  \end{cases}}
+\]
+
+% isVowel: case analysis
+% string: product intro
+% string reverse: product elim
+
+% Products allow us to encode n-ary sequences ok cool
+% Dictionaries 
+% -alternative to select/aggregate, more general by allowing aggregation on discrete
+% types.
+
+\paragraph{Sequence} Tuples introduce expressions of product type, which can encode sequences. For example, 
+$\nb{(\t{a}, \t{b}, \t{c})}$ is a sequence of type $\nb{\t{Char} \x \t{Char} \x \t{Char}}$.
+To use these product types, we use projections to witness their elements. For example,
+$\nb{\pi_0(\t{a}, \t{b}, \t{c})}$ returns $\nb{\t{a}}$.
+
+\paragraph{Dictionary} Dictionaries introduce expressions of dictionary type, which are
+sequences of keys and values. For example, $\dict{(\t{a},\t{a},\t{b})}{(\t{a},\t{b},\t{c})}$
+is a dictionary of type $\nb{\t{Char} \Map \t{Char}}$, comprised of three key-value pairs. To use this dictionary, we have a generalized
+lookup operator, which matches a query against keys in the dictionary, returning a nondeterministic
+choice between all matches. Since $\nb{\t{a}}$ maps both to $\nb{\t{a}}$ and $\nb{\t{b}}$, querying
+the dictionary with $\nb{\t{a}}$ introduces nondeterminism. Interestingly, dictionaries compile
+to linear attention \citep{katharopoulos2020transformers}. They are an abstract model of attention, from a programming language theoretic
+view.
+
+In general, any expression in $\cj$\! with a valid type annotation evaluates
+to some value. In other words, it has behavior. This is critical to prove, since 
+what it will mean to correctly compile $\cj$\! programs is to preserve their behavior
+as $\rd{k}$-linear maps.
+
+\begin{bthm}{(Programs have behavior)}{}
+\vspace{.25em}
+\t{If }$\p{\D}{e}{\ty}$ \t{and} $\nb{\D\vdash\nv}$ \t{, then } $\exists \nb{v}, \step{\sigma(e)}{v}$  
+\end{bthm}
+
+\textit{Proof sketch.} The argument is by induction on $\p{\D}{e}{\ty}$, the type annotation
+of programs. Appendix \ref{app:theory-proofs} contails a detailed proof. In short, the argument
+considers every way to construct a program $\p{\D}{e}{\ty}$, and in each case shows how substituting its free
+variables with values $\nb{\sigma}(\nb{e})$ and then evaluating the resulting program will always yield a value $\nv(\nb{e}) \bstep \nb{v}$.
+
+\subsection{Compiling}
+
+To lift the closed program assumption, a compiler
+must work on programs with free variables. These programs
+specify only a part of the algorithm a system implements.
+The eventual behavior of those free variables is not determined
+by the programmer, but rather the target system---in a process known as 
+\textit{linking} \citep{cardelli1997program}. In this work,
+linking amounts to connecting the compiled $\rd{k}$-linear maps within
+a neural network.
+
+% Talk about the closed program assumption. 
+
+% A correct compiler permits predictions about the behavior of compiled
+% programs. By observing how a program behaves, we should be able to predict how
+% a $\rd{k}$-linear map will behave on certain inputs.
+
+% Compiling
+\begin{figure}[ht]
+  \begin{mdframed}[topline=false,innertopmargin=-1.39ex,innerleftmargin=-0.1ex,innerrightmargin=0ex,linewidth=.8pt,skipbelow=2ex]
+    \rulediv{28pt}{\large \t{Compiling}}
+
+    \[
+    \scalebox{.86}{$\cm{-} :\nb{\t{Program}}\to \rd{k\t{-linear map}}$}\\[1em]
+    \]
+    \[
+    \scalebox{.8}{
+    $\begin{aligned}
+    &\c{\p{\bind{x}{\ty}}{x}{\ty}}({\xvec}) = \xvec\\\\
+    &\c{\p{\emp}{\unit}{\Unit}}(\rd{0}) = \rd{1}\\\\
+    &\c{\p{\D}{\inj{1}{e}}{\ty_1 \+ \ty_2}}(\svec) = \rd{(}\cm{e}\rd{,}\,\rd{0}_{[\hspace{-.18em}[\nb{\ty_2}]\hspace{-.18em}]}\rd{)}\\\\
+    &\c{\p{\D}{\inj{2}{e}}{\ty_1 \+ \ty_2}}(\svec) = \rd{(}\rd{0}_{[\hspace{-.18em}[\nb{\ty_2}]\hspace{-.18em}]}\rd{,}\,\cm{e}\rd{)}\\\\
+    &\c{\p{\D}{(e_1,e_2)}{\ty_1 \x \ty_2}}(\svec) = \rd{(}\cm{e_1}\rd{,}\,\cm{e_2}\rd{)}\\\\
+    &\c{\p{\D_\t{k} \o \D_\t{v}}{\dict{e_\t{k}}{e_\t{v}}}{\ty_\t{k} \Map \ty_\t{v}}}(\svec) = \xvec_\rd{\t{q}} \,\,\rd{\mapsto}\,\,\rsum_{\rd{i=1}}^{\nb{n}}\,\rd{\langle}\cm{\ess{\t{k}}}_\rd{i}\rd{,\,\xvec_\t{q}\rangle} \rt \cm{\ess{\t{v}}}_\rd{i}\\\\
+    &\c{\p{\D_1 \o \D_2}{\letb{x}{e_1}{e_2}}{\ty_2}}(\svec) = \cm{e_2}(\cm{e_1})\\\\
+    &\c{\p{\D_1 \o \D_2}{\case{e}{x_1}{e_1}{x_2}{e_2}}{\ty_2}}(\svec) = \cm{e_1}(\cm{e}_\rd{1}) \rp \cm{e_2}(\cm{e}_\rd{2})\\\\
+    &\c{\p{\D}{\pi_ie}{\ty_i}}(\svec) = \cm{e}_\rd{i}\\\\
+    &\c{\p{\D_\t{kv}\o\D_\t{q}}{e_\t{kv}(e_\t{q})_\mathcal{R}}{\ty_\t{v}}}(\svec) = \cm{e_\t{kv}}(\cm{\mathcal{R}}(\cm{e_\t{q}}))\\\\
+    &\c{\p{\D}{e_1 \sqcap e_2}{\ty}}(\svec) = \cm{e_1}\rp\cm{e_2}\\\\
+    &\c{\p{\D}{e_1;e_2}{\ty}}(\svec) = \cm{e_1}\rt\cm{e_2}\\\\[1em]
+    \end{aligned}$}
+    \]
+
+  \end{mdframed}
+  \caption{Compiling $\cj$ programs}
+  \label{fig:compiling}
+\end{figure}
+
+% State in plain terms what the compiler is.
+The compiler in Fig. \ref{fig:compiling} is a recursive function over programs.
+In general, it compiles a program with $\rd{k}$
+free variables into a $\rd{k}$-linear map. The domain and range of this
+map is determined by the type annotations. For example, a program 
+$\p{\bind{x}{\t{Char}}, \bind{x}{\t{Char}}}{e}{\t{Char}}$ compiles to a 
+$\rd{2}$-linear map $\rd{f}: \rd{\R^4} \x \rd{\R^4} \to \rd{\R^4}$, with
+$\cm{\t{Char}}=\rd{\R^4}$. To illustrate how the compiler works, we will compile a few examples.
+There are additional examples across Appendices \ref{app:theory-examples} and 
+\ref{app:theory-proofs}.
+
+\paragraph{Atom} Because there is no way for $\unit$ to depend on a variable, it
+compiles to a constant $\rd{0}$-linear map, always producing $\rd{1}$. It is the simplest
+linear map the compiler produces. However, sequencing can depend on free variables,
+and help illustrate the simplest $\rd{2}$-linear map.
+\[
+\c{\p{\bind{x}{\Unit},\bind{y}{\Unit}}{x;y}{\Unit}}(\rd{x},\rd{y})=\c{\p{\bind{x}{\Unit}}{x}{\Unit}}(\rd{x})\rt \c{\p{\bind{y}{\Unit}}{y}{\Unit}}(\rd{y})=\rd{x}\rd{y}
+\]
+
+\paragraph{Character} The encoding of characters from before compile to one-hot encodings.
+Since they lack free variables, they compile to constant $\rd{0}$-linear maps.
+
+\[
+\c{\p{\emp}{\t{a}}{\t{Char}}}(\rd{0}) = 
+\c{\p{\emp}{\inj{0}{\unit}}{\t{1}\+\t{1}\+\t{1}\+\t{1}}}(\rd{0}) =
+\rd{(1,0_{\bl{\c{\nb{\t{1}\+\t{1}\+\t{1}}}}})} =
+\rd{(1,0,0,0)}
+\]
+% # Char = 1 + (1 + (1 + 1))
+% # a is inj0 *
+% # b is inj1 (inj0 *)
+% # c is inj1 (inj1 (inj0 *))
+
+\paragraph{Sequence}
+\paragraph{Dictionary}
+
+\lipsum[3]
+
+
+% YOU MUST SHOW THE DENOTATION OF THE CONDITIONAL REVERSE COMPUTATION
+% AT LEAST A SIMPLER FRAGMENT, SO THAT THE MECHANICS ARE CLEAR. IT IS TOTALLY FINE
+% TO DEFER TO APPENDIX AFTER THIS FOR THE COMPLETE MODEL OR EVEN JUST THE CODE.
+
+
+
+\begin{bthm}{(Compiler preserves program behavior)}{}
+\vspace{.25em}
+\t{If }$\p{\D}{e}{\ty}$ \t{and} $\nb{\D\vdash\nv}$ \t{, then } $\exists \nb{v}, \step{\sigma(e)}{v}$  
+\end{bthm}
+
+\begin{blem}{(Programs compile to $\rd{k}$-linear maps)}{}
+  \vspace{.25em}
+\t{If }$\p{\D,\bind{x}{\ty_1}}{e}{\ty_2}$, \t{ then }
+\vspace{0em}
+\[
+\cm{e}(\svec,\a1\rt\xv1\rp\a2\rt\xv2)=\a1\rt\cm{e}(\svec,\xv1)\rp \a2\rt\cm{e}(\svec,\xv2)
+\vspace{.2em}
+\]
+\end{blem}

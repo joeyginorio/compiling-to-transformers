@@ -1,0 +1,90 @@
+\section{Introduction}
+%%%%% Field gap %%%%% 
+
+Representations are \textit{most} of what we can measure from a transformer.
+Yet leveraging these measurements to predict and control behavior remains difficult.
+For example, in an effort to both detect and mitigate social biases (e.g., gender bias)
+% \footnote{For example, they detect gender bias by observing how Claude fills
+% pronouns in ambiguous contexts: "The boss explained a new accounting system to the 
+% administrative assistant, who then taught the rest of \_ team."}
+in Claude 3 Sonnet,
+\citet{durmus2024steering} analyzed its representations.
+Their results were mixed. It is possible to detect
+certain social biases from representations. But intervening on these
+representations can impair general behavior---a result consistent with
+the systematic study in \citet{da2025steering}. In short, our tools for understanding representations
+are not reliable enough to predict or control behavior.
+%%%%%% Subfield gap %%%%%
+% There is a history of validating methods by verifying against
+% ground-truth.
+% - Could a neuroscientist understand a microprocessor?
+% Have some tools for doing this in understanding reps (TRACR, Alta)
+
+To address this, \citet{lindner2023tracr} proposed compilers as a tool for studying representations. 
+By compiling known algorithms into a transformer, techniques for understanding their representations
+can be verified against a ground truth. Consider the conditional string reversal algorithm 
+in Fig. \ref{fig:conditional_reverse}.
+
+\begin{wrapfigure}{l}{0.62\linewidth}
+\vspace{-.8em}
+\includegraphics[width=\linewidth]{figures/conditional_reverse/conditional_reverse.pdf}
+\captionof{figure}{Reversing a string if its first character is a vowel.}
+\label{fig:conditional_reverse}
+\vspace{-1.0em}
+\end{wrapfigure}
+
+If we could compile this algorithm\footnote{The code is Python with parallel dictionary access. Passing a list
+of keys to a dictionary returns a list of values.} into a transformer, 
+we would have a rich model of the underlying representations, and can use that ground truth 
+to verify whether techniques for understanding representations can recover it.
+Similar metascientific studies have been explored in other sciences: \citet{jonas2017could} 
+asked whether neuroscientists could understand a microprocessor, and \citet{lazebnik2002can}
+whether a biologist could fix a radio.
+
+\begin{wrapfigure}{r}{0.40\linewidth}
+  \includegraphics[width=\linewidth]{figures/transformer/transformer.pdf}
+  \vspace{.1em}
+  \captionof{figure}{Compiling program $\cm{e}$ into an attention head of a transformer.}
+  \label{fig:transformer}
+  \vspace{-4em}
+\end{wrapfigure}
+
+%%%%% Our gap %%%%%
+% But the closed program assumption sucks!!!!!!!!!!
+However, compiling algorithms into transformers has so far been of limited use in verifying our 
+understanding of representations.
+In part, this is because prior compilers make a \textit{closed program} assumption 
+\citep{perconti2014verifying}. They cannot compile programs with free variables. As a 
+consequence, the program must specify the entire algorithm a transformer implements. 
+This restricts their application to hand-constructed transformers rather than ones trained 
+by gradient descent---which are ultimately the kind we want to understand.
+
+%%%%% Contributions %%%%%
+% Here is how we fix it.
+\paragraph{Contributions} This work resolves that limitation with $\cj$\!, a language whose
+programs compile to transformers which can be subsequently trained by gradient descent. For example,
+the conditional string reversal program in Fig. \ref{fig:conditional_reverse} can be encoded in
+$\cj$\! and then compiled into an attention head of a transformer trained to solve the task,
+as shown in Fig. \ref{fig:transformer}. More generally, our contributions are:
+
+\setlist[itemize]{topsep=4pt, itemsep=2pt, parsep=2pt, leftmargin=1.5em, rightmargin=1.5em}
+\begin{itemize}[label=$\bullet$]
+\item We specify the syntax, evaluator, and compiler for $\cj$\! programs (Section \ref{sec:cajal}).
+\item We prove that $\cj$\! programs compile correctly to transformers (Section \ref{sec:cajal}).
+\item We implement $\cj$\!, programming
+a transformer to solve a conditional string reversal task using a compiled attention head (Section \ref{sec:experiments})
+\item We analyze its representations using principal components analysis (PCA),
+ ablations, and steering to confirm it uses the compiled attention head
+ to solve the task (Section \ref{sec:experiments}).
+\end{itemize}
+
+As a result, $\cj$\! enables verification of interpretability techniques against partial ground truths
+in transformers trained by gradient descent.
+
+% TODO:
+% 1. Fix section references now. Put stubs for section references, also for the appendices. This 
+% way we don't have to go back and fix them later!
+
+
+
+

@@ -1,0 +1,82 @@
+\section{Background}
+\label{sec:background}
+
+% THIS IS THE SECTION WHERE WE GIVE AWAY THE TRICK.
+% The nice part of the writing in PLDI is that by the 
+% end of the background section, you sort of already 'get'
+% the paper. The theory is really just there to confirm
+% the intuition.
+
+% TRICK: CERTAIN KINDS OF PROGRAMS CAN COMPILE TO 
+% K-LINEAR MAPS.
+
+The most important technical idea in this paper is that $\cj$\! 
+programs compile to $\rd{k}$-linear maps. Because these $\rd{k}$-linear maps
+are differentiable, we can embed them within a transformer.
+
+\paragraph{Linear Algebra} Linear maps model additive interactions between neurons. 
+However, $\rd{k}$-linear maps additionally model multiplicative interactions, while ensuring
+linearity in each argument.
+Consider the difference below, between the linear map $\rd{f}$ and the 
+$\rd{2}$-linear map $\rd{g}$.
+
+\[\rd{f}\Bigl(\rd{\begin{bmatrix}x_1\\x_2\end{bmatrix}}\Bigr) = 
+    \rd{\begin{bmatrix}2x_1+3x_2\\4x_1\end{bmatrix}}\quad\quad 
+\rd{g}\Bigl(\rd{\begin{bmatrix}x_1\\x_2\end{bmatrix}}, \rd{\begin{bmatrix}y_1\\y_2\end{bmatrix}}\Bigr)=
+    \rd{\begin{bmatrix}2x_1y_2+3x_1y_1\\4x_2y_1\end{bmatrix}}
+\]
+\vspace{.2em}
+
+Multiplicative interactions (e.g., $\rd{2x_1y_2}$) can implement more intricate behaviors,
+like gating. For example, the output of $\rd{g}$ is gated by its first input $\bv{x_1}{x_2}$. When $\rd{x_1}$
+is $\rd{0}$, it turns off the activity of the first output neuron. Likewise when $\rd{x_2}$
+is $\rd{0}$, it turns off the activity of the second output neuron. This style of gating
+is how we will implement conditionals using $\rd{k}$-linear maps, including for the conditional
+reverse program shown in Fig. \ref{fig:conditional_reverse}.
+
+\paragraph{Linear Types}
+% Reader must know what a typing judgment is here.
+Most programming languages do not compile to $\rd{k}$-linear maps. However, some languages
+with linear types can. These types annotate programs with information about their behavior,
+including constraints the behavior satisfies.\footnote{In this paper, a program's behavior
+is the value produced by evaluating it.} Consider the difference below, between the type annotation for the conditional on the 
+left and right.
+
+\vspace{-.6em}
+\[
+{\text{\textcolor{ForestGreen}{\Large \cmark}}}\;\;\bind{\nb{x}}{\nb{\t{Bool}}},\bind{\nb{y}}{\nb{\t{Bool}}} \- 
+    \t{if}\,\nb{x}\,\t{then}\,\nb{y}\,\t{else}\,\nb{y} : \nb{\t{Bool}}
+\quad\!\!{\large \boldsymbol{\mid}}\!\!\quad
+\bind{\nb{x}}{\nb{\t{Bool}}},\bind{\nb{y}}{\nb{\t{Bool}}} \- 
+    \t{if}\,\nb{x}\,\t{then}\,\nb{x}\,\t{else}\,\nb{x} : \nb{\t{Bool}}
+    \;\;
+    {\text{\textcolor{Red}{\Large \xmark}}}
+\]
+
+Both are legitimate type annotations. They annotate the free variables $\nb{x}$ and $\nb{y}$ 
+with types that make sense (e.g., $\nb{x}$ must be $\nb{\t{Bool}}$ for the conditional to have
+behavior), and also the type of value they evaluate to---when free variables are instantiated by
+values of their annotated type. But only the type annotation on the left is a linear type 
+annotation: it ensures that evaluation of a program uses variables \textit{exactly once}.
+It uses $\nb{x}$ when checking the condition and $\nb{y}$ when either branch executes.
+For the type annotation on the right, it uses $\nb{x}$ both in checking the condition and
+when either branch executes $\nb{x}$, and does not use $\nb{y}$ at all.
+
+A remarkable fact of linear types is that these syntactic constraints on permissible programs
+correspond to the constraints imposed on $\rd{k}$-linear maps. This has been known for decades
+in programming language semantics \citep{bierman1995categorical,mellies2009categorical}, but only recently used to design programming languages
+whose programs compile to neural networks \citep{velez2026compiling,velez2026compiling2}.
+For example, the \textit{linear} conditional above compiles to the following $\rd{2}$-linear map, which
+can exactly implement the behavior of the program.\footnote{Assuming a typical one-hot encoding of booleans.}
+
+\[
+\llbracket\bind{\nb{x}}{\nb{\t{Bool}}},\bind{\nb{y}}{\nb{\t{Bool}}} \- 
+    \t{if}\,\nb{x}\,\t{then}\,\nb{y}\,\t{else}\,\nb{y} : \nb{\t{Bool}}\rrbracket
+    \Bigl(\rd{\begin{bmatrix}x_1 \\ x_2\end{bmatrix}}, 
+    \rd{\begin{bmatrix}y_1 \\ y_2\end{bmatrix}}\Bigr) = 
+    \rd{\begin{bmatrix}x_1y_1+x_2y_1 \\ x_1y_2+x_2y_2\end{bmatrix}}
+\]
+
+The goal of the following technical material is to formally establish this correspondence across all
+programs in $\cj$\!, and to develop a compiler which computes the correspondence for us.
+However, the most important intuitions are precisely those covered here in the background.

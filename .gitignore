@@ -31,3 +31,4 @@ paper/**/*.fff
 paper/**/*.ttt
 paper/**/*.pdf
 !paper/instructions/*.pdf
+paper/instructions/instructions.pdf

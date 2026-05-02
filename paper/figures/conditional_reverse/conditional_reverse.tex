@@ -1,0 +1,34 @@
+\documentclass[border=0pt]{standalone}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{xcolor}
+\usepackage[scaled=0.85]{FiraMono}
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted,skins}
+\usepackage{minted}
+
+\definecolor{hscodebg}{rgb}{0.98,0.98,0.98}
+\definecolor{bmidnight}{rgb}{0.0, 0.329, 0.576}
+
+\begin{document}
+\begin{tcblisting}{
+    listing engine=minted,
+    colback=hscodebg,
+    colframe=black!100,
+    listing only,
+    boxrule=1.0pt,
+    minted style=tango,
+    minted language=python,
+    minted options={linenos=false,numbersep=3.5mm,texcl=true,fontfamily=FiraMono-TLF},
+    width=10cm,left=4mm,enhanced,
+    sharp corners,
+    nobeforeafter,
+    overlay={\begin{tcbclipinterior}\fill[bmidnight] (frame.south west)
+            rectangle ([xshift=2mm]frame.north west);\end{tcbclipinterior}}
+}
+def conditional_reverse(xs: str) -> str:
+    n = len(xs)
+    kvs = {xs[i]: xs[n - i - 1] for i in range(n)}
+    return kvs[bs] if vowel(xs[0]) else xs
+\end{tcblisting}
+\end{document}

@@ -1,0 +1,228 @@
+% ==== Custom Packages ====
+% Loaded after neurips_2026 and standard packages (inputenc, fontenc, xcolor,
+% hyperref, url, booktabs, amsfonts, nicefrac, microtype, lipsum, graphicx,
+% subcaption, wrapfig) which are already in compiling-to-transformers.tex.
+
+\RequirePackage{amsmath}
+\RequirePackage{amsthm}
+\RequirePackage{bbold}
+\RequirePackage{bbm}
+\RequirePackage{stmaryrd}
+\RequirePackage{bussproofs}
+\RequirePackage{mathtools}
+\RequirePackage{cancel}
+\RequirePackage{enumitem}
+\RequirePackage{pifont}
+\newcommand{\xmark}{\ding{55}}
+\newcommand{\cmark}{\ding{51}}
+
+\RequirePackage{epigraph}
+\setlength{\epigraphwidth}{0.7\textwidth}
+
+\makeatletter
+\renewenvironment{proof}[1][\proofname]{%
+  \par\pushQED{\qed}%
+  \normalfont
+  \topsep6\p@\@plus6\p@\relax
+  \trivlist
+  \item[\hskip\labelsep\sffamily \ul{#1}.]\ignorespaces
+}{%
+  \popQED\endtrivlist\@endpefalse
+}
+\makeatother
+
+\RequirePackage{adjustbox}
+
+% Must come before preamble.sty which redefines \let
+\let\Bbbk\relax
+\RequirePackage{quiver}
+\RequirePackage{array}
+\RequirePackage{tikz}
+\RequirePackage{tikz-cd}
+\usetikzlibrary{shadows}
+
+\newcommand{\tikzul}[1]{%
+  \tikz[baseline=(X.base)] \node[inner sep=0pt, anchor=base] (X) {#1};%
+  \draw[line width=0.2pt] (X.south west) -- (X.south east);%
+}
+
+\RequirePackage[most]{tcolorbox}
+
+\newcommand{\saz}[1]{\textcolor{orange}{SAZ: #1}}
+
+\newcommand{\tul}[1]{%
+  \leavevmode
+  \sbox0{#1}%
+  \dimen0=\wd0
+  {#1}%
+  \llap{\rule[-3.8pt]{\dimen0}{.8pt}}%
+}
+
+\newcommand{\tull}[1]{%
+  \leavevmode
+  \sbox0{#1}%
+  \dimen0=\wd0
+  {#1}%
+  \llap{\rule[-4.9pt]{\dimen0}{1.0pt}}%
+}
+
+\tcbset{
+    bthmbox/.style={
+        enhanced,
+        unbreakable,
+        sharp corners=all,
+        fonttitle=\usefont{T1}{FiraSans-LF}{regular}{n}\fontsize{0.94em}{1em}\selectfont\bfseries,
+        description font=\mdseries,
+        separator sign={{\mdseries:}},
+        fontupper=\normalsize,
+        top=0mm,
+        bottom=0mm,
+        right=0mm,
+        borderline west={3.35mm}{0pt}{black},
+        borderline west={3.0mm}{0.35mm}{bmidnight},
+        colback=white,
+        colframe=white,
+        colbacktitle=white,
+        coltitle=black,
+        attach boxed title to top right,
+        boxed title style={empty, size=minimal, bottom=1.5mm},
+        overlay unbroken={
+            \draw[line width=.8pt]
+                (frame.north west) -- (frame.north east);
+        },
+        overlay first={
+            \draw[line width=.8pt] (title.south west)--(title.south east);
+            \draw[line width=.8pt] ([xshift=3.5mm]frame.north west)--([xshift=3.5mm]frame.south west);
+        },
+        overlay middle={
+            \draw[line width=.8pt] ([xshift=3.5mm]frame.north west)--([xshift=3.5mm]frame.south west);
+        },
+        overlay last={},
+    },
+}
+
+\tcbset{
+    blembox/.style={
+        enhanced,
+        unbreakable,
+        sharp corners=all,
+        fonttitle=\usefont{T1}{FiraSans-LF}{regular}{n}\fontsize{0.94em}{1em}\selectfont\bfseries,
+        description font=\mdseries,
+        separator sign={{\mdseries:}},
+        fontupper=\normalsize,
+        top=0mm,
+        bottom=0mm,
+        right=0mm,
+        borderline west={3.35mm}{0pt}{black},
+        borderline west={3.0mm}{0.35mm}{cayenne},
+        colback=white,
+        colframe=white,
+        colbacktitle=white,
+        coltitle=black,
+        left skip=.2\textwidth,
+        width=.8\textwidth,
+        attach boxed title to top right,
+        boxed title style={empty, size=minimal, bottom=1.5mm},
+        overlay unbroken={
+            \draw[line width=.8pt]
+                (frame.north west) -- (frame.north east);
+        },
+        overlay first={
+            \draw[line width=.8pt] (title.south west)--(title.south east);
+            \draw[line width=.8pt] ([xshift=3.5mm]frame.north west)--([xshift=3.5mm]frame.south west);
+        },
+        overlay middle={
+            \draw[line width=.8pt] ([xshift=3.5mm]frame.north west)--([xshift=3.5mm]frame.south west);
+        },
+        overlay last={},
+    },
+}
+
+\tcbset{
+    rthmbox/.style={
+        enhanced,
+        unbreakable,
+        sharp corners=all,
+        fonttitle=\sffamily\normalsize,
+        fontupper=\normalsize,
+        top=0mm,
+        bottom=0mm,
+        right=0mm,
+        borderline west={3.35mm}{0pt}{black},
+        borderline west={3.0mm}{0.35mm}{cayenne},
+        colback=white,
+        colframe=white,
+        colbacktitle=white,
+        coltitle=black,
+        attach boxed title to top left,
+        boxed title style={empty, size=minimal, bottom=1.5mm},
+        overlay unbroken={
+            \draw[line width=.8pt] (title.south west)--(title.south east);
+        },
+        overlay first={
+            \draw[line width=.8pt] (title.south west)--(title.south east);
+            \draw[line width=.8pt] ([xshift=3.5mm]frame.north west)--([xshift=3.5mm]frame.south west);
+        },
+        overlay middle={
+            \draw[line width=.8pt] ([xshift=3.5mm]frame.north west)--([xshift=3.5mm]frame.south west);
+        },
+        overlay last={},
+    },
+}
+
+\newtcbtheorem{bthm}{Theorem}{bthmbox}{thm}
+\newtcbtheorem{blem}{Lemma}{blembox}{lemm}
+\newtcbtheorem{rlem}{\textbf{\tul{Lemma}}}{rthmbox}{lemm}
+\newtcbtheorem{rthm}{Theorem}{rthmbox}{thm}
+\newtcbtheorem{bex}{Example}{bthmbox}{ex}
+\newtcbtheorem{rex}{Example}{rthmbox}{ex}
+\newtcbtheorem{bdef}{Definition}{bthmbox}{ex}
+\newtcbtheorem{rdef}{Definition}{rthmbox}{ex}
+
+\RequirePackage{tabularray}
+\RequirePackage{mdframed}
+\newcommand{\myhrulefill}{\leavevmode\leaders\hrule height .8pt\hfill\kern-.8pt}
+\newcommand{\rulediv}[2]{\raisebox{.5ex}{\makebox[\linewidth]{\rule{\dimexpr50pt-#1\relax}{.8pt}\ \raisebox{-.412ex}{\makebox[2\dimexpr#1\relax]{\textsf{\small{#2}}}}\hspace{.7ex}\myhrulefill}}}
+
+\tcbuselibrary{minted,skins}
+
+\newtcblisting{hscode1}[1][]{
+    listing engine=minted,
+    colback=hscodebg,
+    colframe=black!100,
+    listing only,
+    boxrule=0.8pt,
+    minted style=friendly,
+    minted language=haskell,
+    minted options={linenos=false,numbersep=3.5mm,texcl=true,#1},
+    left=5mm,enhanced,
+    sharp corners,
+    overlay={\begin{tcbclipinterior}\fill[cayenne] (frame.south west)
+            rectangle ([xshift=3mm]frame.north west);\end{tcbclipinterior}}
+}
+\newtcblisting{hscode2}[1][]{
+    listing engine=minted,
+    colback=hscodebg,
+    colframe=black!100,
+    listing only,
+    boxrule=.9pt,
+    minted style=tango,
+    minted language=python,
+    minted options={linenos=false,numbersep=3.5mm,texcl=true,fontfamily=FiraMono-TLF},
+    width=1.28\linewidth,left=5mm,enhanced,#1,
+    sharp corners,
+    overlay={\begin{tcbclipinterior}\fill[bmidnight] (frame.south west)
+            rectangle ([xshift=3mm]frame.north west);\end{tcbclipinterior}}
+}
+\definecolor{hscodebg}{rgb}{0.98,0.98,0.98}
+
+\RequirePackage[scaled=0.85]{FiraMono}
+\RequirePackage{minted}
+\usemintedstyle{friendly}
+\setminted{fontsize=\fontsize{8.25pt}{11pt}\selectfont}
+\definecolor{offwhite}{rgb}{0.98,0.98,0.98}
+
+% Load preamble last — it redefines many built-in commands
+\RequirePackage{preamble}
+
+% ==== End of Custom Packages ====
