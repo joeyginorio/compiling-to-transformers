@@ -3,43 +3,48 @@ import torch.nn as nn
 from experiments.reverse.dataset import decode, SEQ_LEN
 import cajal.compiling as cj
 from cajal.typing import check
-from cajal.syntax import TmProd, TmProj, TmVar, TySum, TyUnit, TyProd, TmDict, TmLet, TmLookup, TmInj, TmUnit
+from cajal.syntax import Tm, TmProd, TmProj, TmVar, TySum, TyUnit, TyProd, TmDict, TmLet, TmLookup, TmInj, TmUnit, TmCase, TmSeq
 
-# --- Program ---
+# --- Programs ---
 
-elem_ty = TySum([TyUnit()] * 4)
-reverse = TmProd([TmProj(14 - i, TmVar('x')) for i in range(15)])
-check(reverse, {'x': TyProd([elem_ty] * 15)})
+elem_ty = TySum([TyUnit()] * 10)
+pos_ty = TySum([TyUnit()] * 15)
+
 # Dictionary-based reverse: compiles to a linear attention head.
 # Keys and values form a KV memory (position -> reversed element),
 # and each lookup q attends via dot product: ∑_i ⟨k_i, q⟩ · v_i.
-pos_ty = TySum([TyUnit()] * 15)
-_keys = TmProd([TmInj(i, TmUnit(), pos_ty) for i in range(15)])
-_vals = TmProd([TmProj(14 - i, TmVar('x')) for i in range(15)])
-reverse_attn = TmLet(
-    'd',
-    TmDict(_keys, _vals),
-    TmProd([
-        TmLookup(TmVar('d'), TmInj(i, TmUnit(), pos_ty), lambda a, b: a == b)
-        for i in range(15)
-    ])
-)
+def rev(xs_var: str):
+    keys = TmProd([TmInj(i, TmUnit(), pos_ty) for i in range(15)])
+    vals = TmProd([TmProj(14 - i, TmVar(xs_var)) for i in range(15)])
+    return TmLet(
+        'd',
+        TmDict(keys, vals),
+        TmProd([
+            TmLookup(TmVar('d'), TmInj(i, TmUnit(), pos_ty), lambda a, b: a == b)
+            for i in range(15)
+        ])
+    )
+
+reverse_attn = rev('x')
 check(reverse_attn, {'x': TyProd([elem_ty] * 15)})
 
+
 # NOTE: Set the programmed module here.
-program_module = cj.compile(reverse_attn)
+program_rev_module = cj.compile(reverse_attn)
 
 # --- Models ---
 
-class ModelD(nn.Module):
-    def __init__(self, vocab_size: int = 27, d_model: int = 16, n_heads: int = 4, seq_len: int = 30):
+class ModelF(nn.Module):
+    def __init__(self, vocab_size: int = 27, d_model: int = 20, n_heads: int = 2, seq_len: int = 30):
         super().__init__()
         self.register_buffer('mask', nn.Transformer.generate_square_subsequent_mask(seq_len))
         self.register_buffer('positions', torch.arange(seq_len))
 
         self.tok_emb = nn.Embedding(vocab_size, d_model)
         self.pos_emb = nn.Embedding(seq_len, d_model)
-        self.attn = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+        self.attn1 = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+        self.attn2 = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+        self.merge_attn = nn.Linear(d_model + d_model, d_model)
         self.mlp = nn.Sequential(
             nn.Linear(d_model, 4 * d_model),
             nn.ReLU(),
@@ -48,31 +53,37 @@ class ModelD(nn.Module):
         self.out = nn.Linear(d_model, vocab_size)
 
         d_head = d_model // n_heads
-        self.prog = program_module
+        self.prog = program_rev_module
         self.prog_proj_in = nn.Linear(d_model, d_head, bias=False)
         self.merge = nn.Linear(d_model + d_head, d_model, bias=False)
 
     def forward(self, x: torch.Tensor,
                 representations: bool = False,
                 ablate: dict[str, bool] = {'h1': False, 'prog_out': False},
-                steer: dict[int, torch.Tensor] | None = None) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
+                steer: dict[int, tuple[float, float]] | None = None) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
         x1 = self.tok_emb(x) + self.pos_emb(self.positions)
+        
+        r1 = self.mlp(x1) + x1
 
-        h1, _ = self.attn(x1, x1, x1, attn_mask=self.mask, is_causal=True, need_weights=False)
+        h11, _ = self.attn1(r1, r1, r1, attn_mask=self.mask, is_causal=True, need_weights=False)
+        h12, _ = self.attn2(r1, r1, r1, attn_mask=self.mask, is_causal=True, need_weights=False)
+        h1 = self.merge_attn(torch.cat([h11, h12], dim=-1))
+
         if ablate['h1']:
             h1 = torch.roll(h1, shifts=1, dims=0)
 
-        prog_in = self.prog_proj_in(x1[:, :SEQ_LEN, :]) # NOTE: Only pass in the first 15 chars!
+        prog_in = self.prog_proj_in(r1[:, :SEQ_LEN, :])
         if steer is not None:
-            for pos, vec in steer.items():
-                prog_in[:, pos, :] = prog_in[:, pos, :] + vec
+            for pos, (alpha, beta) in steer.items():
+                prog_in[:, pos, 0]  = prog_in[:, pos, 0]  * alpha
+                prog_in[:, pos, 1:] = prog_in[:, pos, 1:] * beta
         prog_out = torch.vmap(self.prog)({'x': prog_in.flatten(start_dim=1)}).reshape(prog_in.shape)
         if ablate['prog_out']:
             prog_out = torch.roll(prog_out, shifts=1, dims=0)
         prog_out_padded = torch.cat([torch.zeros_like(prog_out), prog_out], dim=1)
 
-        r1 = self.merge(torch.cat([h1, prog_out_padded], dim=-1)) + x1
-        r2 = self.mlp(r1) + r1
+        r2 = self.merge(torch.cat([h1, prog_out_padded], dim=-1)) + r1
+        
         logits = self.out(r2)
 
         if representations:
@@ -82,14 +93,16 @@ class ModelD(nn.Module):
             return logits
 
 class ModelU(nn.Module):
-    def __init__(self, vocab_size: int = 27, d_model: int = 16, n_heads: int = 4, seq_len: int = 30):
+    def __init__(self, vocab_size: int = 27, d_model: int = 20, n_heads: int = 2, seq_len: int = 30):
         super().__init__()
         self.register_buffer('mask', nn.Transformer.generate_square_subsequent_mask(seq_len))
         self.register_buffer('positions', torch.arange(seq_len))
 
         self.tok_emb = nn.Embedding(vocab_size, d_model)
         self.pos_emb = nn.Embedding(seq_len, d_model)
-        self.attn = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+        self.attn1 = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+        self.attn2 = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+        self.merge_attn = nn.Linear(d_model + d_model, d_model)
         self.mlp = nn.Sequential(
             nn.Linear(d_model, 4 * d_model),
             nn.ReLU(),
@@ -98,31 +111,39 @@ class ModelU(nn.Module):
         self.out = nn.Linear(d_model, vocab_size)
 
         d_head = d_model // n_heads
-        self.prog = cj.to_multilinear(program_module, rand=False, sample_env={'x': torch.zeros(SEQ_LEN * d_head)})
+        self.prog = cj.to_multilinear(program_rev_module, rand=False, sample_env={'x': torch.zeros(SEQ_LEN * d_head)})
         self.prog_proj_in = nn.Linear(d_model, d_head, bias=False)
         self.merge = nn.Linear(d_model + d_head, d_model, bias=False)
 
     def forward(self, x: torch.Tensor,
                 representations: bool = False,
                 ablate: dict[str, bool] = {'h1': False, 'prog_out': False},
-                steer: dict[int, torch.Tensor] | None = None) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
+                steer: dict[int, tuple[float, float]] | None = None) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
         x1 = self.tok_emb(x) + self.pos_emb(self.positions)
+        
+        r1 = self.mlp(x1) + x1
 
-        h1, _ = self.attn(x1, x1, x1, attn_mask=self.mask, is_causal=True, need_weights=False)
+
+        h11, _ = self.attn1(r1, r1, r1, attn_mask=self.mask, is_causal=True, need_weights=False)
+        h12, _ = self.attn2(r1, r1, r1, attn_mask=self.mask, is_causal=True, need_weights=False)
+        h1 = self.merge_attn(torch.cat([h11, h12], dim=-1))
+
         if ablate['h1']:
             h1 = torch.roll(h1, shifts=1, dims=0)
 
-        prog_in = self.prog_proj_in(x1[:, :SEQ_LEN, :])
+        prog_in = self.prog_proj_in(r1[:, :SEQ_LEN, :])
+        prog_in_sel = prog_in.clone()
         if steer is not None:
-            for pos, vec in steer.items():
-                prog_in[:, pos, :] = prog_in[:, pos, :] + vec
-        prog_out = torch.vmap(self.prog)({'x': prog_in.flatten(start_dim=1)}).reshape(prog_in.shape)
+            for pos, (alpha, beta) in steer.items():
+                prog_in_sel[:, pos, 0]  = prog_in_sel[:, pos, 0]  * alpha
+                prog_in_sel[:, pos, 1:] = prog_in_sel[:, pos, 1:] * beta
+        prog_out = torch.vmap(self.prog)({'x': prog_in_sel.flatten(start_dim=1)}).reshape(prog_in.shape)
         if ablate['prog_out']:
             prog_out = torch.roll(prog_out, shifts=1, dims=0)
         prog_out_padded = torch.cat([torch.zeros_like(prog_out), prog_out], dim=1)
 
-        r1 = self.merge(torch.cat([h1, prog_out_padded], dim=-1)) + x1
-        r2 = self.mlp(r1) + r1
+        r2 = self.merge(torch.cat([h1, prog_out_padded], dim=-1)) + r1
+
         logits = self.out(r2)
 
         if representations:
@@ -131,15 +152,19 @@ class ModelU(nn.Module):
         else:
             return logits
 
+
+
 class ModelT(nn.Module):
-    def __init__(self, vocab_size: int = 27, d_model: int = 16, n_heads: int = 4, seq_len: int = 30):
+    def __init__(self, vocab_size: int = 27, d_model: int = 20, n_heads: int = 2, seq_len: int = 30):
         super().__init__()
         self.register_buffer('mask', nn.Transformer.generate_square_subsequent_mask(seq_len))
         self.register_buffer('positions', torch.arange(seq_len))
 
         self.tok_emb = nn.Embedding(vocab_size, d_model)
         self.pos_emb = nn.Embedding(seq_len, d_model)
-        self.attn = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+        self.attn1 = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+        self.attn2 = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+        self.merge_attn = nn.Linear(d_model + d_model, d_model)
         self.mlp = nn.Sequential(
             nn.Linear(d_model, 4 * d_model),
             nn.ReLU(),
@@ -148,31 +173,39 @@ class ModelT(nn.Module):
         self.out = nn.Linear(d_model, vocab_size)
 
         d_head = d_model // n_heads
-        self.prog = cj.to_multilinear(program_module, rand=True, sample_env={'x': torch.zeros(SEQ_LEN * d_head)})
+        self.prog = cj.to_multilinear(program_rev_module, rand=True, sample_env={'x': torch.zeros(SEQ_LEN * d_head)})
         self.prog_proj_in = nn.Linear(d_model, d_head, bias=False)
         self.merge = nn.Linear(d_model + d_head, d_model, bias=False)
 
     def forward(self, x: torch.Tensor,
                 representations: bool = False,
                 ablate: dict[str, bool] = {'h1': False, 'prog_out': False},
-                steer: dict[int, torch.Tensor] | None = None) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
+                steer: dict[int, tuple[float, float]] | None = None) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
         x1 = self.tok_emb(x) + self.pos_emb(self.positions)
+        
+        r1 = self.mlp(x1) + x1
 
-        h1, _ = self.attn(x1, x1, x1, attn_mask=self.mask, is_causal=True, need_weights=False)
+
+        h11, _ = self.attn1(r1, r1, r1, attn_mask=self.mask, is_causal=True, need_weights=False)
+        h12, _ = self.attn2(r1, r1, r1, attn_mask=self.mask, is_causal=True, need_weights=False)
+        h1 = self.merge_attn(torch.cat([h11, h12], dim=-1))
+
         if ablate['h1']:
             h1 = torch.roll(h1, shifts=1, dims=0)
 
-        prog_in = self.prog_proj_in(x1[:, :SEQ_LEN, :])
+        prog_in = self.prog_proj_in(r1[:, :SEQ_LEN, :])
+        prog_in_sel = prog_in.clone()
         if steer is not None:
-            for pos, vec in steer.items():
-                prog_in[:, pos, :] = prog_in[:, pos, :] + vec
-        prog_out = torch.vmap(self.prog)({'x': prog_in.flatten(start_dim=1)}).reshape(prog_in.shape)
+            for pos, (alpha, beta) in steer.items():
+                prog_in_sel[:, pos, 0]  = prog_in_sel[:, pos, 0]  * alpha
+                prog_in_sel[:, pos, 1:] = prog_in_sel[:, pos, 1:] * beta
+        prog_out = torch.vmap(self.prog)({'x': prog_in_sel.flatten(start_dim=1)}).reshape(prog_in.shape)
         if ablate['prog_out']:
             prog_out = torch.roll(prog_out, shifts=1, dims=0)
         prog_out_padded = torch.cat([torch.zeros_like(prog_out), prog_out], dim=1)
 
-        r1 = self.merge(torch.cat([h1, prog_out_padded], dim=-1)) + x1
-        r2 = self.mlp(r1) + r1
+        r2 = self.merge(torch.cat([h1, prog_out_padded], dim=-1)) + r1
+
         logits = self.out(r2)
 
         if representations:
@@ -182,14 +215,16 @@ class ModelT(nn.Module):
             return logits
 
 class ModelI(nn.Module):
-    def __init__(self, vocab_size: int = 27, d_model: int = 16, n_heads: int = 4, seq_len: int = 30):
+    def __init__(self, vocab_size: int = 27, d_model: int = 20, n_heads: int = 2, seq_len: int = 30):
         super().__init__()
         self.register_buffer('mask', nn.Transformer.generate_square_subsequent_mask(seq_len))
         self.register_buffer('positions', torch.arange(seq_len))
 
         self.tok_emb = nn.Embedding(vocab_size, d_model)
         self.pos_emb = nn.Embedding(seq_len, d_model)
-        self.attn = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+        self.attn1 = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+        self.attn2 = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+        self.merge_attn = nn.Linear(d_model + d_model, d_model)
         self.mlp = nn.Sequential(
             nn.Linear(d_model, 4 * d_model),
             nn.ReLU(),
@@ -202,12 +237,16 @@ class ModelI(nn.Module):
                 ablate: dict[str, bool] = {'h1': False}) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
         x1 = self.tok_emb(x) + self.pos_emb(self.positions)
 
-        h1, _ = self.attn(x1, x1, x1, attn_mask=self.mask, is_causal=True, need_weights=False)
+        r1 = self.mlp(x1) + x1
+        
+        h11, _ = self.attn1(r1, r1, r1, attn_mask=self.mask, is_causal=True, need_weights=False)
+        h12, _ = self.attn2(r1, r1, r1, attn_mask=self.mask, is_causal=True, need_weights=False)
+        h1 = self.merge_attn(torch.cat([h11, h12], dim=-1))
+
         if ablate['h1']:
             h1 = torch.roll(h1, shifts=1, dims=0)
 
-        r1 = h1 + x1
-        r2 = self.mlp(r1) + r1
+        r2 = h1 + r1
         logits = self.out(r2)
 
         if representations:

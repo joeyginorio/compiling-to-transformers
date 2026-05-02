@@ -7,6 +7,7 @@ from torch.utils.data import Dataset
 
 SEP = "|"
 LETTERS = list(string.ascii_lowercase)
+VOWELS = set("aeiou")
 SEQ_LEN = 15
 SEED = 42
 
@@ -16,7 +17,8 @@ decode = {i: tok for tok, i in encode.items()}
 
 def generate_example(rng: random.Random) -> str:
     chars = rng.choices(LETTERS, k=SEQ_LEN)
-    return " ".join(chars + [SEP] + chars[::-1])
+    output = chars[::-1]
+    return " ".join(chars + [SEP] + output)
 
 def generate_split(n: int, rng: random.Random) -> list[str]:
     return [generate_example(rng) for _ in range(n)]
