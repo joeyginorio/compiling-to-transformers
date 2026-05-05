@@ -33,3 +33,6 @@ paper/**/*.pdf
 !paper/instructions/*.pdf
 paper/instructions/instructions.pdf
 experiments/rotate/data/learning/modelu.csv
+experiments/rotate/data/dataset/test.txt
+experiments/rotate/data/dataset/train.txt
+experiments/rotate/data/dataset/val.txt
