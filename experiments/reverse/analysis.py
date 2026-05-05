@@ -74,16 +74,15 @@ def add_test_loss(lr: float, batch_size: int, max_step: int = 800) -> None:
     for model_name in models:
         csv_path = _data_dir / f"{model_name}.csv"
         df = pd.read_csv(csv_path)
+        m = _model_cls[model_name]().to(DEVICE)
         loss_map: dict[tuple[int, int], float] = {}
         for seed in _seeds:
             for step in test_steps:
                 ckpt_path = _data_dir / "checkpoints" / model_name / f"checkpoint_step{step}_seed{seed}_lr{lr}_bs{batch_size}.pt"
                 if not ckpt_path.exists():
                     continue
-                m = _model_cls[model_name]()
-                ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+                ckpt = torch.load(ckpt_path, map_location=DEVICE, weights_only=True)
                 m.load_state_dict(ckpt["state_dict"])
-                m.to(DEVICE)
                 loss_map[(step, seed)] = evaluate(m, test_loader)
         df["test_loss"] = df.apply(
             lambda row: loss_map.get((int(row["step"]), int(row["seed"])), float("nan")),
@@ -106,10 +105,12 @@ def plot_behavioral_dynamics(lr: float | None = None, batch_size: int | None = N
     loss_col = "test_loss" if test else "val_loss"
 
     if test and lr is not None and batch_size is not None:
-        sample = pd.read_csv(_data_dir / f"{models[0]}.csv")
-        mask = (sample["lr"] == lr) & (sample["batch_size"] == batch_size)
-        if "test_loss" not in sample.columns or sample.loc[mask, "test_loss"].isna().all():
-            add_test_loss(lr, batch_size, max_step)
+        for mn in models:
+            s = pd.read_csv(_data_dir / f"{mn}.csv")
+            mask = (s["lr"] == lr) & (s["batch_size"] == batch_size)
+            if "test_loss" not in s.columns or s.loc[mask, "test_loss"].isna().all():
+                add_test_loss(lr, batch_size, max_step)
+                break
 
     for model_name in models:
         df = pd.read_csv(_data_dir / f"{model_name}.csv")
