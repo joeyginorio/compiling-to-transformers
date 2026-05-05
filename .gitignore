@@ -32,3 +32,4 @@ paper/**/*.ttt
 paper/**/*.pdf
 !paper/instructions/*.pdf
 paper/instructions/instructions.pdf
+experiments/rotate/data/learning/modelu.csv
