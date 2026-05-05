@@ -109,6 +109,8 @@
 
 % ===== My own typesetting machinery ======
 \usepackage{custom}
+\usepackage{blkarray}
+
 
 
 
@@ -131,7 +133,7 @@
 \begin{abstract}
 % % ------------------------
 % % 1. Introduce the problem
-The representations of transformers are easy to measure but hard to understand---we cannot reliably predict or control behavior from them.
+The representations of transformers are easy to measure but hard to understand; we cannot reliably predict or control behavior from them.
 % % ----------
 % % 2. The gap
 To address this, recent work proposed compiling high-level programs to transformers as a tool for studying these representations.
@@ -163,46 +165,6 @@ by gradient descent.
 \input{sections/related.tex}
 \input{sections/discussion.tex}
 
-
-\lipsum[3-6]
-
-\clearpage
-\begin{wrapfigure}{r}{0.5\linewidth}
-  \centering
-  \includegraphics[width=\linewidth]{../experiments/cond_reverse/data/plots/behavioral_dynamics_lr0.01_bs128_maxstep600.pdf}
-  \caption{Behavioral dynamics.}
-\end{wrapfigure}
-
-\lipsum[3-8] 
-
-\clearpage
-\begin{figure}[h] 
-  \centering 
-  \includegraphics[width=\linewidth]{../experiments/cond_reverse/data/plots/pca_res_step5000_lr0.01_bs128_seed15.pdf}
-  \caption{PCA analysis}
-\end{figure}
-
-\lipsum[3]
-
-
-
-\clearpage
-\begin{wrapfigure}{r}{0.5\linewidth}
-  \centering
-  \includegraphics[width=\linewidth]{../experiments/cond_reverse/data/plots/ablations_step5000_lr0.01_bs128.pdf}
-  \caption{Behavioral dynamics.}
-\end{wrapfigure}
-
-\lipsum[3]
-
-\clearpage
-\begin{wrapfigure}{r}{0.5\linewidth}
-  \centering
-    \includegraphics[width=\linewidth]{../experiments/cond_reverse/data/plots/steering_modelf_step5000_lr0.01_bs128.pdf}
-  \caption{Behavioral dynamics.}
-\end{wrapfigure}
-
-\lipsum[3]
 
 
 

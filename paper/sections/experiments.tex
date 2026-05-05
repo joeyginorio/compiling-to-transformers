@@ -1,2 +1,127 @@
 \section{Experiments}
 \label{sec:experiments}
+
+Lifting the closed program assumption to compile programs with free variables
+introduces a potential complication. There is no guarantee a neural network will use the compiled
+$\rd{k}$-linear map for its behavior. The goal of these experiments is to establish
+that transformers can learn to use these compiled $\rd{k}$-linear maps. Our primary
+case study trains transformers to implement the conditional reverse algorithm from
+Fig. \ref{fig:conditional_reverse}, using one-layer transformers structured like Fig. \ref{fig:transformer}.
+Appendix \ref{app:experiments}
+contains additional details and experiments, replicating our findings across 
+four other tasks. \textbf{In summary, these findings show that transformers
+can learn to use the compiled $\rd{k}$-linear maps.}
+
+% \vspace{-.5em}
+\paragraph{Models}
+
+We train four one-layer causal transformers \citep{radford2018improving} on sequences of the form 
+\t{input|output}, where \t{|} is a delimiter separating the input from the correct output. 
+The $\t{input}$ is a 15-character string sampled uniformly from lowercase letters in the
+alphabet. If the first character in $\t{input}$ is a vowel, \t{output} is
+the reversed string; otherwise, \t{output} is equal to \t{input}. Training uses teacher-forced 
+next-token prediction with cross-entropy loss applied to tokens after the delimiter. 
+The four transformers share the same base architecture and training procedure,
+differing only in whether an additional compiled attention head is present and,
+if so, which program is compiled into it.
+
+\setlist[itemize]{topsep=4pt, itemsep=2pt, parsep=2pt, leftmargin=1.5em, rightmargin=1.5em}
+\begin{itemize}[label=$\bullet$]
+  \item \t{Model I} is our baseline model. It is a one-layer causal transformer with four attention
+  heads, using learned token and position embeddings---essentially Fig. \ref{fig:conditional_reverse}
+  without the compiled attention head. The \t{I} stands for indirect, as it is not \textit{directly} 
+  programmed with $\cj$\!.
+  \item \t{Model F} is our primary model. It is \t{Model I} but with an additional
+  attention head compiled from an encoding of the conditional reverse algorithm
+  in Fig. \ref{fig:conditional_reverse}. The \t{F} stands for full.
+  \item \t{Model P} is an ablation model. It is \t{Model F} but with the additional 
+  attention head compiled from an encoding of a reverse algorithm. It is an ablation
+  in the sense that it compiles a simpler algorithm. The \t{P} stands for
+  partial.
+  \item \t{Model T} is an ablation model. It is \t{Model F} but where the compiled attention
+  head is randomized. It is an ablation in the sense that it keeps the signature of the compiled
+  attention head, but randomizes the compiled $\rd{k}$-linear map. The \t{T} stands for type-preserving.
+\end{itemize}
+
+\begin{wrapfigure}{r}{0.4\linewidth}
+  \vspace{-3em}
+  \centering
+  \includegraphics[width=\linewidth]{../experiments/cond_reverse/data/plots/behavioral_dynamics_lr0.01_bs128_maxstep600.pdf}
+  \caption{Behavioral dynamics.}
+  \label{fig:behavioral-dynamics}
+  \vspace{-3.5em}
+\end{wrapfigure}
+
+
+\subsection{Does compiling change learning?}
+
+% Summary
+Each model eventually learns to implement conditional reverse, but there are
+differences in how.
+% Explain Figure
+Fig. \ref{fig:behavioral-dynamics} summarizes their early training dynamics. 
+The heatmaps measure across 20 seeds the behavior of each model on the input:
+\t{onmlkjihgfedcba}. The y-axis tracks across seeds whether a model outputs \t{a} in its first position, \t{b} in its second position,
+and so forth---the correct output after reversal.
+
+% What is interesting
+Because input strings are drawn uniformly from lowercase letters in the alphabet, the
+majority of the data do not contain a vowel in the first position. Therefore, a decent
+strategy for minimizing loss is to just learn identity, and not worry about reversal. This
+is essentially what \t{Model I} does. Its initial dip in loss comes from learning
+identity, and then the rest of learning is spent conditionally reversing for successively
+more vowels in the first position. \t{Model P} is similar. However, \t{Model F} never
+transitions into an overuse of identity, and instead outright learns the task the fastest
+across models, suggesting that the compiled attention head may be driving
+its behavior. \t{Model T} is similar.
+
+\subsection{Does compiling change representations?}
+% Summary 
+The learning dynamics suggest \t{Model F} is using the compiled attention head
+to quickly learn the conditional reverse task. To check, we can observe whether
+there is task-relevant structure in the representations proceeding
+the compiled attention head versus the non-compiled attention heads. 
+% Explain Figure
+Fig. \ref{fig:pca} displays the representations of each model projected onto
+their first three principal components, extracted using PCA. Row \t{R2} depicts
+the residual stream after the attention layer, and \t{A} the outputs of the non-compiled
+attention heads. For clarity, only representations from position 16 are shown, and on a fragment
+of the alphabet. The points are labeled by target token identity, and use an \t{X} marker when
+the first token in the input sequence is a vowel. 
+% What is interesting
+Crucially, there appears to be no task-relevant
+structure produced by non-compiled attention heads \t{A} for \t{Model F}.
+
+\begin{figure}[t] 
+  \centering 
+  \includegraphics[width=.9\linewidth]{../experiments/cond_reverse/data/plots/pca_res_step5000_lr0.01_bs128_seed15.pdf}
+  \vspace{.3em}
+  \caption{PCA on Model Representations}
+  \label{fig:pca}
+  \vspace{-1em}
+\end{figure}
+
+\subsection{Does compiling change the necessary representations?}
+
+\begin{wrapfigure}{r}{0.4\linewidth}
+  \vspace{-1em}
+  \centering
+  \includegraphics[width=\linewidth]{../experiments/cond_reverse/data/plots/ablations_step5000_lr0.01_bs128.pdf}
+  \caption{Behavioral dynamics.}
+  \vspace{-1em}
+\end{wrapfigure}
+
+\lipsum[3]
+
+\subsection{Does compiling change the controllable representations?}
+
+\begin{wrapfigure}{r}{0.4\linewidth}
+  \vspace{-1em}
+  \centering
+    \includegraphics[width=\linewidth]{../experiments/cond_reverse/data/plots/steering_modelf_step5000_lr0.01_bs128.pdf}
+  \caption{Behavioral dynamics.}
+\end{wrapfigure}
+
+\lipsum[3]
+
+

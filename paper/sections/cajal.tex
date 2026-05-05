@@ -202,19 +202,19 @@ binary form.
 \]
 
 To use expressions of sum type we pattern match, specifying what to do when we match against
-each character. For example, the following pattern match inspects $\nb{e}$, returning $\nb{\t{a}}$ if the
+each character. For example, the following pattern match inspects $\nb{x}$, returning $\nb{\t{a}}$ if the
 it is a vowel, and otherwise returning $\nb{\t{d}}$.
 
 \[
-\nb{\t{isVowel}} \!\quad\triangleq\quad\! \nb{\t{case}\,e\,\t{of}\,
+\nb{\t{isVowel}} \!\quad\triangleq\quad\! \nb{\t{case}\,x\,\t{of}\,
   \begin{cases}
-    \inj{0}{x_0}\Rightarrow \inj{0}{x_0}\\
-    \inj{1}{x_1}\Rightarrow \inj{3}{x_0}\\
-    \inj{2}{x_2}\Rightarrow \inj{3}{x_0}\\
-    \inj{3}{x_3}\Rightarrow \inj{3}{x_0}\\
+    \inj{0}{x_0}\Rightarrow x;\inj{0}{x_0}\\
+    \inj{1}{x_1}\Rightarrow x;\inj{3}{x_0}\\
+    \inj{2}{x_2}\Rightarrow x;\inj{3}{x_0}\\
+    \inj{3}{x_3}\Rightarrow x;\inj{3}{x_0}\\
   \end{cases}}
   \simeq\quad
-  \nb{\t{case}\,e\,\t{of}\,
+  \nb{\t{case}\,x\,\t{of}\,
   \begin{cases}
     \t{a}\Rightarrow \t{a}\\
     \t{b}\Rightarrow \t{d}\\
@@ -324,6 +324,7 @@ There are additional examples across Appendices \ref{app:theory-examples} and
 compiles to a constant $\rd{0}$-linear map, always producing $\rd{1}$. It is the simplest
 linear map the compiler produces. However, sequencing can depend on free variables,
 and help illustrate the simplest $\rd{2}$-linear map.
+
 \[
 \c{\p{\bind{x}{\Unit},\bind{y}{\Unit}}{x;y}{\Unit}}(\rd{x},\rd{y})=\c{\p{\bind{x}{\Unit}}{x}{\Unit}}(\rd{x})\rt \c{\p{\bind{y}{\Unit}}{y}{\Unit}}(\rd{y})=\rd{x}\rd{y}
 \]
@@ -335,36 +336,87 @@ Since they lack free variables, they compile to constant $\rd{0}$-linear maps.
 \c{\p{\emp}{\t{a}}{\t{Char}}}(\rd{0}) = 
 \c{\p{\emp}{\inj{0}{\unit}}{\t{1}\+\t{1}\+\t{1}\+\t{1}}}(\rd{0}) =
 \rd{(1,0_{\bl{\c{\nb{\t{1}\+\t{1}\+\t{1}}}}})} =
-\rd{(1,0,0,0)}
+\rd{\begin{bmatrix}1 \!&\! 0 \!&\! 0 \!&\! 0\end{bmatrix}^{\t{T}}}
 \]
-% # Char = 1 + (1 + (1 + 1))
-% # a is inj0 *
-% # b is inj1 (inj0 *)
-% # c is inj1 (inj1 (inj0 *))
 
-\paragraph{Sequence}
-\paragraph{Dictionary}
+With pattern matching, we can compile computation which conditions on character
+identity. In general, pattern matching across $\nb{n}$ cases compiles
+to a linear mixture of $\nb{n}$ experts, gated by the expression we are matching
+against \cite{jacobs1991adaptive}. For example, $\nb{\t{isVowel}}$ compiles to a $\rd{1}$-linear map,
+returning a linear mixture of $\nb{4}$ experts.\footnote{When clear from context, we omit the full type annotation when compiling.}
+% In each paragraph try to anchor the explanation with an intuition from
+% the machine learning community.
 
-\lipsum[3]
+\[
+\c{\nb{\t{isVowel}}}
+\Bigl(\rd{\begin{bmatrix}x_0\\x_1\\x_2\\x_3\end{bmatrix}}\Bigr) 
+=
+\cm{x;\inj{0}{\unit}}(\rd{x_0}) \rp
+\rd{\sum_{i\bl{=}1}^{3}}\; 
+\c{\nb{x;\inj{3}{\unit}}}(\rd{x_i})
+=
+\rd{x_0 \cdot \rd{\begin{bmatrix}1\\0\\0\\0\end{bmatrix}}\;+\;}
+\;\rd{\sum_{i\bl{=}1}^{3}}\;
+\rd{x_i \cdot \rd{\begin{bmatrix}0\\0\\0\\1\end{bmatrix}}}
+\]
 
 
-% YOU MUST SHOW THE DENOTATION OF THE CONDITIONAL REVERSE COMPUTATION
-% AT LEAST A SIMPLER FRAGMENT, SO THAT THE MECHANICS ARE CLEAR. IT IS TOTALLY FINE
-% TO DEFER TO APPENDIX AFTER THIS FOR THE COMPLETE MODEL OR EVEN JUST THE CODE.
+\paragraph{Sequence} Compiling a sequence is just concatenating the compiled entries of the sequence. Projection
+amounts to projecting out the $\rd{i}$-th piece of that concatenated vector.
+\[
+\c{\nb{\pi_1\t{(a,b)}}:\nb{\t{Char}}} = \c{\nb{\t{(a,b)}}:\nb{\t{Char} \x \t{Char}}}_\rd{1} = 
+\rd{\begin{bmatrix}1 \!&\! 0 \!&\! 0 \!&\! 0 \!&\! 0 \!&\! 1 \!&\! 0 \!&\! 0\end{bmatrix}^{\t{T}}_1}
+= \rd{\begin{bmatrix}0 \!&\! 1 \!&\! 0 \!&\! 0\end{bmatrix}^{\t{T}}}
+\]
+
+\paragraph{Dictionary} We model attention using dictionaries. These dictionaries compile to linear attention with
+ an identity kernel \citep{katharopoulos2020transformers}, which is essentially a sum of outer products between keys and values. 
+ Lookup amounts to the application of a compiled query against the linear attention map.
+
+\vspace{-1em}
+\[
+\c{\dict{(\t{a},\t{a},\t{b})}{(\t{a},\t{b},\t{c})}} = 
+\cm{\t{a}} \,\rd{\otimes}\, \cm{\t{a}} \rp 
+\cm{\t{b}} \,\rd{\otimes}\, \cm{\t{a}} \rp 
+\cm{\t{c}} \,\rd{\otimes}\, \cm{\t{b}} \;\simeq
+  \rd{\begin{blockarray}{ccccc}
+   & \nb{\t{a}} & \nb{\t{b}} & \nb{\t{c}} & \nb{\t{d}} \\                                                   
+  \begin{block}{c[cccc]}
+    \nb{\t{a}} & 0 & 0 & 0 & 0 \rule{0pt}{2.2ex}\\                                                      
+    \nb{\t{b}} & 0 & 0 & 0 & 0 \\                                                      
+    \nb{\t{c}} & 1 & 1 & 0 & 0 \\                                                      
+    \nb{\t{d}} & 1 & 0 & 0 & 0 \rule[-1ex]{0pt}{0pt}\\                                                      
+  \end{block}     
+  \end{blockarray}}
+\]
+
+We know this compiled dictionary is \textit{correct} because it mirrors the behavior
+of the original dictionary. A lookup on $\nb{\t{b}}$ returns $\nb{\t{c}}$, and
+looking up $\cm{\t{b}}$ in the compiled dictionary returns $\c{\nb{\t{c}}}$. 
+The key theoretical result in this paper proves that this sense of correctness holds for all programs in
+$\cj\!$. 
 
 
 
 \begin{bthm}{(Compiler preserves program behavior)}{}
 \vspace{.25em}
-\t{If }$\p{\D}{e}{\ty}$ \t{and} $\nb{\D\vdash\nv}$ \t{, then } $\exists \nb{v}, \step{\sigma(e)}{v}$  
+\t{If }$\p{\D}{e}{\ty}$ \t{and} $\nb{\D\vdash\nv}$, \t{and} $\nb{V}=\{(\nb{D},\vs) \mid \nv(\es) \bstep_\nb{D} \vs\}$, \t{ then } $\cm{e}(\cm{\nv})=\rd{\sum_{\bl{(\nb{D}\hspace{.05em},\hspace{.05em}\vs)\in\nb{V}}}}\,\cm{v}$
 \end{bthm}
+
+\textit{Proof sketch.} The argument is again by induction on $\p{\D}{e}{\ty}$, the type annotation
+of programs. Appendix \ref{app:theory-proofs} contails a detailed proof. In short, the argument
+considers every way to construct a program $\p{\D}{e}{\ty}$, and in each case shows that
+the compiled program $\cm{e}$ mirrors the behavior $\nb{V}$ of the original program. Because programs
+have nondeterministic behavior, $\nb{V}$ captures the possible nondeterministic values. Beyond this, most cases
+rely on the following lemma.
 
 \begin{blem}{(Programs compile to $\rd{k}$-linear maps)}{}
   \vspace{.25em}
-\t{If }$\p{\D,\bind{x}{\ty_1}}{e}{\ty_2}$, \t{ then }
-\vspace{0em}
-\[
-\cm{e}(\svec,\a1\rt\xv1\rp\a2\rt\xv2)=\a1\rt\cm{e}(\svec,\xv1)\rp \a2\rt\cm{e}(\svec,\xv2)
-\vspace{.2em}
-\]
+\t{If }$\p{\D,\bind{x}{\ty_1}}{e}{\ty_2}$ \t{ then } $\cm{e}(\svec,\a1\rt\xv1\rp\a2\rt\xv2)=\a1\rt\cm{e}(\svec,\xv1)\rp \a2\rt\cm{e}(\svec,\xv2)$
 \end{blem}
+\vspace{.4em}
+
+This lemma formally establishes the correspondence between programs and $\rd{k}$-linear maps
+we have discussed throughout this paper. It is also the most important technical idea
+in this paper---it further shows the promise of linear types for compiling discrete
+algorithms into various kinds of neural networks \citep{velez2026compiling,velez2026compiling2}. 
