@@ -36,3 +36,10 @@ experiments/rotate/data/learning/modelu.csv
 experiments/rotate/data/dataset/test.txt
 experiments/rotate/data/dataset/train.txt
 experiments/rotate/data/dataset/val.txt
+experiments/cond_rotate/data/dataset/test.txt
+experiments/cond_rotate/data/dataset/train.txt
+experiments/cond_rotate/data/dataset/val.txt
+experiments/cond_rotate/data/learning/modelf.csv
+experiments/cond_rotate/data/learning/modeli.csv
+experiments/cond_rotate/data/learning/modelt.csv
+experiments/cond_rotate/data/learning/modelu.csv
