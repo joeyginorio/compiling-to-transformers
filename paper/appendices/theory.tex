@@ -272,6 +272,11 @@ By induction and substitution $\nvs2(\ess2) = \nv(\ess2)\bstep \vsrc2$
 Let $\exists \vs=\dict{\vsrc1}{\vsrc2}$
 
 By substitution and evaluation $\nv(\dict{e_1}{e_2})=\dict{\nv(e_1)}{\nv(e_2)}=\dict{\nvs1(e_1)}{\nvs2(e_2)} \bstep \dict{v_1}{e_2}$
+
+\item \t{\textbf{Case}} $\p{\D_1 \o \D_2}{e_1;e_2}{\ty}$
+
+Similar to previous case
+
 \item \t{\textbf{Case}} $\p{\D_1 \o \D_2}{\letb{x}{e_1}{e_2}}{\ty_2}$
 
 By splitting source environments $\nv=\nvs1 \o \nvs2$ where $\Ds1 \vdash \nvs1$ and $\Ds2 \vdash \nvs2$
@@ -480,6 +485,10 @@ Observe that $(\nb{D},\dict{v_\t{k}}{v_\t{v}}) \in\Vs \iff (\nb{\ders{\t{k}}},\v
 		        &=\rd{\sum}_{(\nb{D},\,\dict{v_\t{k}}{v_\t{v}})\in\nb{V}} \cm{\dict{v_\t{k}}{v_\t{v}}} && \text{By compiling}\\
 \end{aligned}
 \]
+
+\item \t{\textbf{Case}} $\p{\D_1 \o \D_2}{e_1;e_2}{\ty}$
+
+Similar to previous case
 
 \item \t{\textbf{Case}} $\p{\D_1 \o \D_2}{\letb{x}{e_1}{e_2}}{\ty_2}$
 
@@ -809,10 +818,16 @@ Consider whether $\xs \in\fv{\ess{\t{k}}}$ or $\xs \in\fv{\ess{\t{v}}}$,
             &\;\;\;\;\; \text{By compiling}
 		\end{aligned}
 \]
+
 \item \t{\textbf{Case}} $\xs \in\fv{\ess{\t{v}}}$
 
 Similar to previous case
 \end{itemize}
+
+\item \t{\textbf{Case}} $\nb{e_1;e_2}$
+
+Similar to previous case
+
 
 \item \t{\textbf{Case}} $\nb{\pi_ie}$
 \[
