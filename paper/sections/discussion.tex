@@ -1,2 +1,28 @@
 \section{Discussion}
 \label{sec:discussion}
+
+\paragraph{Summary} To validate new methods for understanding transformer representations, it helps to have transformers
+whose representations we already understand. Using those transformers, new techniques for analyzing representations
+can be verified against a ground truth. Prior work introduced languages for building
+such transformers but had a critical limitation---the closed program assumption. They could not compile
+programs with free variables. As a consequence, their programs must specify the entire algorithm a 
+transformer implements, restricting applicability to hand-constructed transformers rather than ones
+trained by gradient descent. Using insights from programming language theory, $\cj$\! resolves this limitation.
+Its formal specification is proven correct, and our experiments show that transformers can learn
+to use compiled programs which only specify a part of their behavior. As a result, new techniques for analyzing representations
+can be verified against partial ground truths in transformers trained by gradient descent.
+
+\paragraph{Limitations}
+
+By compiling programs to $\rd{k}$-linear maps, we can embed them within transformers.
+However, these linear maps are not necessarily \textit{causal}. The $i$-th output coordinate of the linear map 
+may be a function of the $j$-th input coordinate where $j \geq i$. In our experiments this causes no issue. Inputs
+look like \t{abc|cba}, and we construct compiled attention heads to only receive the sequence appearing before
+the delimiter. However, typical pretraining regimens of large language models possess no such delimiters, 
+and therefore leveraging $\cj$\! in its current form would be more challenging: the \textit{input} portion of the
+input sequence is not clear.
+
+\paragraph{Future Directions} We suspect these limitations can be resolved with \textit{ordered} types, a more restrictive
+variant of linear types helpful for stream programming \citep{cutler2024stream}.  Programming language theory suggests that programs with ordered types may 
+compile to causal $\rd{k}$-linear maps \citep{mellies2009categorical}. If such a correspondence holds, we could design $\cj$\! so that partial specifications
+of behavior can be injected into networks far larger than those considered here---it is our next step.

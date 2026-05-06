@@ -5,8 +5,44 @@ $\cj$\!\! was inspired by research in both formal language theory and programmin
 language theory. Below we highlight their key insights, while also taking the
 opportunity to clarify where our work differs.
 
-\subsection{Formal Language Theory}
+\paragraph{Formal Language Theory}
+\citet{weiss2021thinking} introduced the programming language \t{RASP} as a model
+ of transformers, and subsequent work built compilers for \t{RASP}-like languages, showing
+ how to implement discrete algorithms as transformers \citep{lindner2023tracr,shaw2024alta}.
+ These papers directly inspired our efforts. They showed programming languages could
+ serve as abstractions for understanding transformers. 
+ 
+However, the theory underpinning \t{RASP} is formal language theory; the proofs and theorems
+concerning \t{RASP}-like languages focus on the class of formal languages they recognize \citep{strobl2024formal}.
+There are no formal specifications with proofs of correctness for compiling its programs to 
+transformers. As a result, some principles underlying their design are difficult to understand
+or fix (e.g., closed program assumption).
+
+% Stick to RASP, TRACR/ALTA, and the closed program assumption. 
+% They are very cool!
+% No formal specifications of the language, its behavior, and how to compile 
+% sufficient to prove the correctness of compiling. 
+
+\paragraph{Programming Language Theory} There is a rich theory for specifying and proving
+the correctness of compilers \citep{patterson2019next}. This theory drives discovery of new programming languages 
+which compile to various target architectures (e.g., quantum computers, GPUs, or x86)
+\citep{leroy2016compcert, hovgaard2018high,selinger2004towards}. Recent work applied that theory
+in a new context: compiling to neural networks \citep{velez2026compiling,velez2026compiling2}. 
+They showed that linear types could be used to constrain programming languages such that
+their programs compile into neural networks.
+
+However, prior work focused on the theory of differentiable programming (i.e., expressing discrete
+structure in \t{PyTorch}), and on languages which
+compile to convolutional and recurrent neural networks. $\cj$\! instead compiles to transformers, introducing
+dictionaries which compile to linear attention heads. More importantly, we are introducing programming language theory as a tool for
+mechanistic interpretability. To our knowledge, this is the first paper to do so.
+% Specifically, we learned 
+% about the closed program assumption from \citep{patterson2019next}, which explains generically
+% the limitations stemming from compilers which cannot compile programs with free variables.
 
 
-
-\subsection{Programming Language Theory}
+% Stick to denotational semantics, mixed in with reference to POPL/PLDI toward end. 
+% They are very cool!
+% But have so far targeted have targeted applications in differentiable programming language,
+% and not yet been used in the context of mechanistic interpretability.
+% 
