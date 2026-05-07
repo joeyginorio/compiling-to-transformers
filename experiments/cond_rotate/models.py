@@ -139,8 +139,8 @@ class ModelF(nn.Module):
             prog_out = torch.roll(prog_out, shifts=1, dims=0)
         prog_out_padded = torch.cat([torch.zeros_like(prog_out), prog_out], dim=1)
 
-        r1 = self.merge(torch.cat([h1, prog_out_padded], dim=-1)) + x1
-        r1 = self.mlp1(r1) + r1
+        r1_att = self.merge(torch.cat([h1, prog_out_padded], dim=-1)) + x1
+        r1 = self.mlp1(r1_att) + r1_att
 
         h2, _ = self.attn2(r1, r1, r1, attn_mask=self.mask, is_causal=True, need_weights=False)
         r2 = h2 + r1
@@ -150,7 +150,7 @@ class ModelF(nn.Module):
 
         if representations:
             prog_in_padded = torch.cat([torch.zeros_like(prog_in), prog_in], dim=1)
-            return logits, {"x1": x1, "h1": h1, "r1": r1, "r2": r2, "prog_in": prog_in_padded, "prog_out": prog_out_padded}
+            return logits, {"x1": x1, "h1": h1, "r1": r1_att, "r2": r2, "prog_in": prog_in_padded, "prog_out": prog_out_padded}
         else:
             return logits
 
@@ -323,8 +323,8 @@ class ModelI(nn.Module):
         h1, _ = self.attn1(x1, x1, x1, attn_mask=self.mask, is_causal=True, need_weights=False)
         if ablate['h1']:
             h1 = torch.roll(h1, shifts=1, dims=0)
-        r1 = h1 + x1
-        r1 = self.mlp1(r1) + r1
+        r1_att = h1 + x1
+        r1 = self.mlp1(r1_att) + r1_att
 
         h2, _ = self.attn2(r1, r1, r1, attn_mask=self.mask, is_causal=True, need_weights=False)
         r2 = h2 + r1
@@ -333,7 +333,7 @@ class ModelI(nn.Module):
         logits = self.out(r2)
 
         if representations:
-            return logits, {"x1": x1, "h1": h1, "r1": r1, "r2": r2}
+            return logits, {"x1": x1, "h1": h1, "r1": r1_att, "r2": r2}
         else:
             return logits
 

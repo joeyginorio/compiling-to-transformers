@@ -23,7 +23,7 @@ from experiments.cond_rotate.dataset import datasets, decode, SEQ_LEN
 from experiments.cond_rotate.learning import evaluate, _seeds, DEVICE
 
 # -- Globals ---
-_seeds = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
+_seeds = [0,1,2,3,4]
 
 plt.rcParams['axes.unicode_minus'] = False
 plt.rcParams.update({
@@ -461,7 +461,7 @@ def plot_pca_res(models_list: list[nn.Module], step: int, lr: float, batch_size:
         'legend.title_fontsize': 22,
     })
     # row_configs = [("r2", "target"), ("h1", "target"), ("r1", "current")]
-    row_configs = [("r2", "target"), ("h1", "target")]
+    row_configs = [("r1", "target"), ("h1", "target")]
     n = len(models_list)
     fig, axes = plt.subplots(len(row_configs), n, figsize=(4.5 * n, 4 * len(row_configs)),
                              squeeze=False, sharex=False, sharey=False,
@@ -564,18 +564,6 @@ def plot_ablations(step: int, lr: float, batch_size: int, test: bool = False) ->
             ("R",   {'h1': False, 'prog_out': True}),
             ("A+R", {'h1': True,  'prog_out': True}),
         ]),
-        ("U", ModelU(), [
-            ("_",   {'h1': False, 'prog_out': False}),
-            ("A",   {'h1': True,  'prog_out': False}),
-            ("R",   {'h1': False, 'prog_out': True}),
-            ("A+R", {'h1': True,  'prog_out': True}),
-        ]),
-        ("T", ModelT(), [
-            ("_",   {'h1': False, 'prog_out': False}),
-            ("A",   {'h1': True,  'prog_out': False}),
-            ("R",   {'h1': False, 'prog_out': True}),
-            ("A+R", {'h1': True,  'prog_out': True}),
-        ]),
         ("I", ModelI(), [
             ("_",   {'h1': False}),
             ("A",   {'h1': True}),
@@ -610,12 +598,14 @@ def plot_ablations(step: int, lr: float, batch_size: int, test: bool = False) ->
     df = pd.DataFrame(rows)
 
     fig, ax = plt.subplots(figsize=(8, 6))
-    hatches = {"F": "", "U": "/", "T": "--", "I": "||"}
+    plot_hue_order = ["F", "I"]
+    plot_palette = {k: palette[k] for k in plot_hue_order}
+    hatches = {"F": "", "I": "||"}
     sns.barplot(data=df, x="condition", y="accuracy", hue="model",
-                order=all_conditions, hue_order=hue_order,
-                palette=palette, errorbar="sd", capsize=0.4, ax=ax, width=0.65,
+                order=all_conditions, hue_order=plot_hue_order,
+                palette=plot_palette, errorbar="sd", capsize=0.4, ax=ax, width=0.65,
                 err_kws={"color": "black", "linewidth": 2.5, "solid_capstyle": "projecting"})
-    for container, model_label in zip(ax.containers, hue_order):
+    for container, model_label in zip(ax.containers, plot_hue_order):
         for bar in container:
             bar.set_hatch(hatches[model_label])
     ax.axhline(1 / 26, color="black", linestyle="--", linewidth=3.5, label="Ch")
@@ -625,8 +615,8 @@ def plot_ablations(step: int, lr: float, batch_size: int, test: bool = False) ->
     legend = ax.legend(title="")
     for handle, text in zip(legend.legend_handles, legend.get_texts()):
         label = text.get_text()
-        if label in palette:
-            text.set_color(palette[label])
+        if label in plot_palette:
+            text.set_color(plot_palette[label])
             if isinstance(handle, mpatches.Patch):
                 handle.set_hatch(hatches[label])
         elif label == "Ch":

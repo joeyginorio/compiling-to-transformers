@@ -23,7 +23,7 @@ from experiments.rotate.dataset import datasets, decode, SEQ_LEN
 from experiments.rotate.learning import evaluate, _seeds, DEVICE
 
 # -- Globals ---
-_seeds = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
+_seeds = [0,1,2,3,4,5,6,7,8,9]
 
 plt.rcParams['axes.unicode_minus'] = False
 plt.rcParams.update({
@@ -62,14 +62,14 @@ models = ["modelf", "modelu", "modelt", "modeli"]
 _model_cls = {"modelf": ModelF, "modelu": ModelU, "modelt": ModelT, "modeli": ModelI}
 
 
-def add_test_loss(lr: float, batch_size: int, max_step: int = 800) -> None:
+def add_test_loss(lr: float, batch_size: int, max_step: int = 5000) -> None:
     """Compute test loss from checkpoints and write it into each model's CSV.
 
     Evaluates every (seed, step) checkpoint at multiples of 50 up to max_step
     for the given lr and batch_size, then writes a test_loss column back to the CSV.
     """
     test_loader = DataLoader(datasets["test"], batch_size=256)
-    test_steps = range(0, max_step + 1, 50)
+    test_steps = range(0, max_step + 1, 100)
 
     for model_name in models:
         csv_path = _data_dir / f"{model_name}.csv"
@@ -134,7 +134,7 @@ def plot_behavioral_dynamics(lr: float | None = None, batch_size: int | None = N
         frames.append(run_df[["step", "seed", "train_loss", loss_col, "model"]])  # type: ignore
 
         # Build heatmap rows for this model using its best config
-        run_df["output2"] = run_df["outputs"].apply(lambda s: ast.literal_eval(s)[1])  # type: ignore
+        run_df["output2"] = run_df["outputs"].apply(lambda s: ast.literal_eval(s)[0])  # type: ignore
         for i, ch in enumerate("abcdefghijklmno"):
             result = run_df.groupby("step")["output2"].apply(  # type: ignore
                 lambda g, c=ch, pos=i: (g.str[pos] == c).mean()
@@ -461,7 +461,7 @@ def plot_pca_res(models_list: list[nn.Module], step: int, lr: float, batch_size:
         'legend.title_fontsize': 22,
     })
     # row_configs = [("r2", "target"), ("h1", "target"), ("r1", "current")]
-    row_configs = [("r2", "target"), ("h1", "target")]
+    row_configs = [("r1", "target"), ("h1", "target")]
     n = len(models_list)
     fig, axes = plt.subplots(len(row_configs), n, figsize=(4.5 * n, 4 * len(row_configs)),
                              squeeze=False, sharex=False, sharey=False,
@@ -540,7 +540,7 @@ def plot_pca_res(models_list: list[nn.Module], step: int, lr: float, batch_size:
 
     fname = f"pca_res_step{step}_lr{lr}_bs{batch_size}_seed{seed}.pdf"
     fig.tight_layout()
-    fig.subplots_adjust(hspace=0.10, wspace=-0.35)
+    fig.subplots_adjust(hspace=0.40, wspace=-0.05)
     fig.savefig(_data_dir.parent / "plots" / fname, dpi=600, bbox_inches='tight', pad_inches=0)
     plt.show()
 
@@ -559,18 +559,6 @@ def plot_ablations(step: int, lr: float, batch_size: int, test: bool = False) ->
     })
     model_configs: list[tuple[str, nn.Module, list[tuple[str, dict[str, bool]]]]] = [
         ("F", ModelF(), [
-            ("_",   {'h1': False, 'prog_out': False}),
-            ("A",   {'h1': True,  'prog_out': False}),
-            ("R",   {'h1': False, 'prog_out': True}),
-            ("A+R", {'h1': True,  'prog_out': True}),
-        ]),
-        ("U", ModelU(), [
-            ("_",   {'h1': False, 'prog_out': False}),
-            ("A",   {'h1': True,  'prog_out': False}),
-            ("R",   {'h1': False, 'prog_out': True}),
-            ("A+R", {'h1': True,  'prog_out': True}),
-        ]),
-        ("T", ModelT(), [
             ("_",   {'h1': False, 'prog_out': False}),
             ("A",   {'h1': True,  'prog_out': False}),
             ("R",   {'h1': False, 'prog_out': True}),
@@ -610,12 +598,14 @@ def plot_ablations(step: int, lr: float, batch_size: int, test: bool = False) ->
     df = pd.DataFrame(rows)
 
     fig, ax = plt.subplots(figsize=(8, 6))
-    hatches = {"F": "", "U": "/", "T": "--", "I": "||"}
+    plot_hue_order = ["F", "I"]
+    plot_palette = {k: palette[k] for k in plot_hue_order}
+    hatches = {"F": "", "I": "||"}
     sns.barplot(data=df, x="condition", y="accuracy", hue="model",
-                order=all_conditions, hue_order=hue_order,
-                palette=palette, errorbar="sd", capsize=0.4, ax=ax, width=0.65,
+                order=all_conditions, hue_order=plot_hue_order,
+                palette=plot_palette, errorbar="sd", capsize=0.4, ax=ax, width=0.65,
                 err_kws={"color": "black", "linewidth": 2.5, "solid_capstyle": "projecting"})
-    for container, model_label in zip(ax.containers, hue_order):
+    for container, model_label in zip(ax.containers, plot_hue_order):
         for bar in container:
             bar.set_hatch(hatches[model_label])
     ax.axhline(1 / 26, color="black", linestyle="--", linewidth=3.5, label="Ch")
@@ -625,8 +615,8 @@ def plot_ablations(step: int, lr: float, batch_size: int, test: bool = False) ->
     legend = ax.legend(title="")
     for handle, text in zip(legend.legend_handles, legend.get_texts()):
         label = text.get_text()
-        if label in palette:
-            text.set_color(palette[label])
+        if label in plot_palette:
+            text.set_color(plot_palette[label])
             if isinstance(handle, mpatches.Patch):
                 handle.set_hatch(hatches[label])
         elif label == "Ch":
@@ -646,7 +636,7 @@ def prop_correct(lr: float, batch_size: int) -> pd.DataFrame:
     for model_name in models:
         df = pd.read_csv(_data_dir / f"{model_name}.csv")
         df = df[(df["lr"] == lr) & (df["batch_size"] == batch_size)].copy()
-        df["output2"] = df["outputs"].apply(lambda s: ast.literal_eval(s)[1])  # type: ignore
+        df["output2"] = df["outputs"].apply(lambda s: ast.literal_eval(s)[0])  # type: ignore
         for i, ch in enumerate("abcdefghijklmno"):
             result = df.groupby("step")["output2"].apply(  # type: ignore
                 lambda g, c=ch, idx=i: (g.str[idx] == c).mean()

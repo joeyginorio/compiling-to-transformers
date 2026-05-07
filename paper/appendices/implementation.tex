@@ -6,3 +6,15 @@
 % the code used for training and all analyses in the paper. We packaged
 % everything in a docker container, which walks through Cajal's core
 % functionality in a Jupyter Notebook.
+We implemented $\cj$\! in \t{Python}, embedding it within $\t{PyTorch}$. Every $\cj$\! program compiles to a 
+\t{PyTorch} module implementing the $\rd{k}$-linear map. These are then freely used within the transformers in our
+experiments. The implementation of $\cj$ and its compiler is transliterated directly from the formal specifications in this paper.
+
+Our implementation uses property-based tests \citep{maciver2019hypothesis} to check that the implementation satisfies key theorems from this paper (i.e.,
+that programs have behavior, and that compiling preserves their behavior). These tests essentially randomly sample $\cj$\! programs
+and check that these properties hold of sampled programs.
+
+The supplementary material contains an artifact which includes our implementation of $\cj$\! and all code used to run and 
+analyze experiments. We have packaged the artifact as a Docker container for reproducibility. On running the artifact (see README),
+the entrypoint will be a Jupyter Notebook walking through examples of how to use the code.
+

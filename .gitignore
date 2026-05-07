@@ -43,3 +43,13 @@ experiments/cond_rotate/data/learning/modelf.csv
 experiments/cond_rotate/data/learning/modeli.csv
 experiments/cond_rotate/data/learning/modelt.csv
 experiments/cond_rotate/data/learning/modelu.csv
+experiments/cond_rotate/data/plots/ablations_step5000_lr0.001_bs128.pdf
+experiments/cond_rotate/data/plots/behavioral_dynamics_lr0.001_bs128_maxstep5000.pdf
+experiments/cond_rotate/data/plots/pca_res_step5000_lr0.001_bs128_seed0.pdf
+experiments/cond_rotate/data/plots/pca.txt
+experiments/rotate/data/learning/modelf.csv
+experiments/rotate/data/plots/ablations_step5000_lr0.001_bs128.pdf
+experiments/rotate/data/plots/behavioral_dynamics_lr0.001_bs128_maxstep5000.pdf
+experiments/rotate/data/plots/pca_res_step5000_lr0.001_bs128_seed0.pdf
+experiments/rotate/data/learning/modelf.csv
+experiments/rotate/data/plots/pca.txt

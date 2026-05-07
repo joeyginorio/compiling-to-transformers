@@ -15,8 +15,8 @@ can be verified against partial ground truths in transformers trained by gradien
 \paragraph{Limitations}
 
 By compiling programs to $\rd{k}$-linear maps, we can embed them within transformers.
-However, these linear maps are not necessarily \textit{causal}. The $i$-th output coordinate of the linear map 
-may be a function of the $j$-th input coordinate where $j \geq i$. In our experiments this causes no issue. Inputs
+However, these linear maps are not necessarily \textit{causal}. The $\rd{i}$-th output coordinate of the linear map 
+may be a function of the $\rd{j}$-th input coordinate where $\rd{j} \geq \rd{i}$. In our experiments this causes no issue. Inputs
 look like \t{abc|cba}, and we construct compiled attention heads to only receive the sequence appearing before
 the delimiter. However, typical pretraining regimens of large language models possess no such delimiters, 
 and therefore leveraging $\cj$\! in its current form would be more challenging: the \textit{input} portion of the

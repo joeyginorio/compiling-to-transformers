@@ -218,7 +218,7 @@ the $\rd{0}$ vector from the vector space denoted by its type.
 
 The following proofs assume Barendregt's convention \citep{pierce2002types}, which states that
 variable names across bound and free variables are unique. This greatly simplifies proofs in a setting
-where binding mechanisms are not complicated. We additionally reference substitution $\nb{x \map v}(e)$
+where binding mechanisms are not complicated. We additionally reference substitution $\nb{\{x \map v\}(e)}$
 throughout the proofs---it is no more than replacing all instances of $\nb{x}$ with $\nb{v}$ in the expression
 $\nb{e}$ \citep{pierce2002types}.
 
@@ -252,7 +252,7 @@ By induction $\nv(\es) \bstep \vsrc1$
 
 Let $\exists \vs=\inj{1}{v_1}$
 
-By substitution and evaluation $\nv(\inl{e})=\inj{1}{\nv(e)} \bstep \inj{1}{v_1}$
+By substitution and evaluation $\nv(\inj{1}{e})=\inj{1}{\nv(e)} \bstep \inj{1}{v_1}$
 \item \t{\textbf{Case}} $\p{\D}{\inj{2}{e}}{\ty_1 \+ \ty_2}$
 
 Similar to previous case
@@ -300,11 +300,11 @@ By induction and substitution $\nvs1(\es) = \nv(\es) \bstep \vs$
 
 Because evaluation preserves typing and by closing substitutions $\vs:\nb{\ty_1 \+ \ty_2}$
 
-By canonical forms either $\vs=\inl{v_1}$ or $\vs=\inr{v_2}$
+By canonical forms either $\vs=\inj{1}{v_1}$ or $\vs=\inj{2}{v_2}$
 
 Consider each possibility,
 \begin{itemize}
-\item \t{\textbf{Case}} $\vs=\inl{v_1}$
+\item \t{\textbf{Case}} $\vs=\inj{1}{v_1}$
 
 By source environments $\nb{\Ds2,\bind{x}{\ty_1}} \- \nb{\nvs2\{x \map v_1\}}$
 
@@ -315,7 +315,7 @@ Because substitutions commute $\nb{\{x \map v_1\}}(\nb{\nv}(\ess1)) \bstep \vsrc
 Let $\exists \vs=\vsrc\bullet$
 
 By substitution and evaluation $\nb{\case{\nv(e)}{x_1}{\nv(e_1)}{x_2}{\nv(e_2)}} \bstep \vsrc\bullet$
-\item \t{\textbf{Case}} $\vs = \inr{v_2}$
+\item \t{\textbf{Case}} $\vs = \inj{2}{v_2}$
 
 Similar to previous case
 \end{itemize}
